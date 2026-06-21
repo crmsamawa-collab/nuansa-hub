@@ -1,0 +1,22 @@
+// File ini sekarang menjadi Serverless Function di Vercel (bukan file statis biasa).
+// File ini membaca Environment Variables langsung dari dashboard Vercel Anda secara aman saat runtime.
+
+export default function handler(request, response) {
+  // Atur header agar browser membacanya sebagai file JavaScript (.js)
+  response.setHeader('Content-Type', 'application/javascript');
+  
+  // Atur cache-control agar konfigurasi selalu diperbarui dan tidak tersangkut di cache browser
+  response.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
+
+  const firebaseConfig = {
+    apiKey: process.env.FIREBASE_API_KEY || "",
+    authDomain: process.env.FIREBASE_AUTH_DOMAIN || "",
+    projectId: process.env.FIREBASE_PROJECT_ID || "",
+    storageBucket: process.env.FIREBASE_STORAGE_BUCKET || "",
+    messagingSenderId: process.env.FIREBASE_MESSAGING_SENDER_ID || "",
+    appId: process.env.FIREBASE_APP_ID || ""
+  };
+
+  // Mengirimkan objek konfigurasi ke browser melalui objek global window.FirebaseConfig
+  response.status(200).send(`window.FirebaseConfig = ${JSON.stringify(firebaseConfig)};`);
+}

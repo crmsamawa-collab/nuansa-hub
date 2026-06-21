@@ -57,8 +57,8 @@
     </div>
   </div>
 
-  <!-- MEMUAT KONFIGURASI EKSTERNAL AMAN -->
-  <script src="config.js"></script>
+  <!-- MEMUAT KONFIGURASI DINAMIS DARI VERCEL API ROUTE -->
+  <script src="/api/config.js"></script>
 
   <!-- FIREBASE SDK IMPORTS -->
   <script type="module">
@@ -83,7 +83,7 @@
       updateDoc
     } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
-    // Konfigurasi cadangan jika config.js gagal dimuat atau kosong
+    // Konfigurasi cadangan kosong
     const defaultFirebaseConfig = {
       apiKey: "",
       authDomain: "",
@@ -93,42 +93,40 @@
       appId: ""
     };
 
-    // Sinkronisasi variabel pembacaan konfigurasi Firebase
-    const rawConfig = typeof __firebase_config !== 'undefined' 
-      ? JSON.parse(__firebase_config) 
-      : (window.FirebaseConfig || defaultFirebaseConfig);
+    // Ambil dari window.FirebaseConfig yang didefinisikan secara dinamis oleh /api/config.js
+    const rawConfig = window.FirebaseConfig || defaultFirebaseConfig;
 
-    // Memastikan properti kunci terpetakan dengan benar
     const firebaseConfig = {
-      apiKey: rawConfig.apiKey || rawConfig.BUILD_PLACEHOLDER_API_KEY || "",
-      authDomain: rawConfig.authDomain || rawConfig.BUILD_PLACEHOLDER_AUTH_DOMAIN || "",
-      projectId: rawConfig.projectId || rawConfig.BUILD_PLACEHOLDER_PROJECT_ID || "",
-      storageBucket: rawConfig.storageBucket || rawConfig.BUILD_PLACEHOLDER_STORAGE_BUCKET || "",
-      messagingSenderId: rawConfig.messagingSenderId || rawConfig.BUILD_PLACEHOLDER_MESSAGING_SENDER_ID || "",
-      appId: rawConfig.appId || rawConfig.BUILD_PLACEHOLDER_APP_ID || ""
+      apiKey: rawConfig.apiKey || "",
+      authDomain: rawConfig.authDomain || "",
+      projectId: rawConfig.projectId || "",
+      storageBucket: rawConfig.storageBucket || "",
+      messagingSenderId: rawConfig.messagingSenderId || "",
+      appId: rawConfig.appId || ""
     };
 
     const appId = typeof __app_id !== 'undefined' ? __app_id : 'nuansahub-app';
 
     // Inisialisasi Firebase
     let app, auth, db;
-    let isFirebaseConnected = false; // Status koneksi Firebase
+    let isFirebaseConnected = false; 
 
-    // Validasi apakah konfigurasi valid sebelum diinisialisasi
-    const isValidConfig = firebaseConfig.apiKey && firebaseConfig.projectId;
+    // Validasi apakah nilai konfigurasi sudah diganti dari placeholder default
+    const isConfigValid = firebaseConfig.apiKey && firebaseConfig.apiKey !== "";
 
-    if (isValidConfig) {
+    if (isConfigValid) {
       try {
         app = initializeApp(firebaseConfig);
         auth = getAuth(app);
         db = getFirestore(app);
         isFirebaseConnected = true;
+        console.log("Firebase berhasil diinisialisasi melalui Vercel API!");
       } catch (e) {
-        console.error("Gagal inisialisasi Firebase. Menggunakan simulasi mock.", e);
+        console.error("Gagal inisialisasi Firebase. Berjalan dalam mode offline.", e);
         isFirebaseConnected = false;
       }
     } else {
-      console.warn("Konfigurasi Firebase belum diisi. Berjalan dalam mode simulasi/lokal.");
+      console.warn("Konfigurasi Firebase belum terdeteksi. Silakan atur Environment Variables di Dashboard Vercel Anda.");
     }
 
     // --- AVATAR DEFAULT PILIHAN ---
@@ -227,12 +225,17 @@
 
     // Firebase Core Auth Integration (Penyelarasan RULE 3)
     const initFirebaseAuth = async () => {
-      if (!auth) {
-        // Matikan loading jika firebase tidak aktif (mode offline)
+      // Hentikan loader awal segera setelah inisialisasi selesai dijalankan
+      const hideLoader = () => {
         const loader = document.getElementById("initial-loader");
         if (loader) loader.style.display = "none";
+      };
+
+      if (!auth) {
+        hideLoader();
         return;
       }
+
       try {
         if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
           await signInWithCustomToken(auth, __initial_auth_token);
@@ -246,8 +249,7 @@
         isFirebaseConnected = false;
         renderApp();
       } finally {
-        const loader = document.getElementById("initial-loader");
-        if (loader) loader.style.display = "none";
+        hideLoader();
       }
     };
 
