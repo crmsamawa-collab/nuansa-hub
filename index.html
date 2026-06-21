@@ -45,9 +45,9 @@
 </head>
 <body class="bg-slate-50 text-slate-800 pb-24 min-h-screen flex flex-col">
 
-  <!-- APP ROOT -->
+  <!-- APLIKASI UTAMA -->
   <div id="app" class="flex-grow flex flex-col">
-    <!-- Loading State Awal -->
+    <!-- Tampilan Memuat (Loading State) Awal -->
     <div id="initial-loader" class="fixed inset-0 bg-emerald-950 flex flex-col items-center justify-center z-50 text-white p-6">
       <div class="bg-amber-400 text-emerald-950 p-4 rounded-3xl font-black text-3xl shadow-xl mb-4 animate-bounce">
         🏢
@@ -57,7 +57,7 @@
     </div>
   </div>
 
-  <!-- LOAD SECURE EXTERNAL CONFIG -->
+  <!-- MEMUAT KONFIGURASI EKSTERNAL AMAN -->
   <script src="config.js"></script>
 
   <!-- FIREBASE SDK IMPORTS -->
@@ -80,19 +80,17 @@
       query, 
       onSnapshot, 
       addDoc, 
-      updateDoc, 
-      orderBy,
-      where
+      updateDoc
     } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
-    // Fallback konfigurasi jika config.js gagal termuat
+    // Konfigurasi cadangan jika config.js gagal dimuat
     const defaultFirebaseConfig = {
       apiKey: "", 
-      authDomain: "nuansahub-pondokkelapa.firebaseapp.com",
-      projectId: "nuansahub-pondokkelapa",
-      storageBucket: "nuansahub-pondokkelapa.appspot.com",
-      messagingSenderId: "123456789",
-      appId: "1:123456789:web:abcdef123"
+      authDomain: "nuansa-hub.firebaseapp.com",
+      projectId: "nuansa-hub",
+      storageBucket: "nuansa-hub.firebasestorage.app",
+      messagingSenderId: "571717069024",
+      appId: "1:571717069024:web:85a9c992274e37771bc885",
     };
 
     // Deteksi variabel global dari server runtime atau config.js
@@ -109,10 +107,10 @@
       auth = getAuth(app);
       db = getFirestore(app);
     } catch (e) {
-      console.error("Firebase Initialization Error. Fallback mock enabled.", e);
+      console.error("Gagal inisialisasi Firebase. Menggunakan simulasi mock.", e);
     }
 
-    // --- (B) PRESET AVATARS ---
+    // --- AVATAR DEFAULT PILIHAN ---
     const PRESET_AVATARS = [
       "https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=150",
       "https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=150",
@@ -129,7 +127,7 @@
       "Apa warna mobil/motor pertama Anda?"
     ];
 
-    // State Aplikasi Global
+    // State Aplikasi Global dengan Data Mock Awal
     window.AppState = {
       users: [
         { id: "u-admin", name: "edhos", tower: "Menara Samawa", unit: "0102", phone: "082220691212", password: "admin", role: "admin", verified: true, points: 999, avatar: PRESET_AVATARS[0], securityQuestion: SECURITY_QUESTIONS[0], securityAnswer: "sd pondok kelapa" },
@@ -206,7 +204,7 @@
       }
     };
 
-    // Firebase Core Auth Integration (RULE 3 compliance)
+    // Firebase Core Auth Integration (Penyelarasan RULE 3)
     const initFirebaseAuth = async () => {
       if (!auth) return;
       try {
@@ -216,11 +214,11 @@
           await signInAnonymously(auth);
         }
       } catch (err) {
-        console.warn("Auth initialization error. Operating in mock offline state.", err);
+        console.warn("Autentikasi Firebase gagal. Beroperasi dalam mode offline.", err);
       }
     };
 
-    // --- (C) FIRESTORE DATA SYNC PATTERN (RULE 1 & 2 compliance) ---
+    // SINKRONISASI DATA FIRESTORE REAL-TIME (Kepatuhan RULE 1 & RULE 2)
     const syncFirestoreData = () => {
       if (!db || !auth.currentUser) return;
       
@@ -229,6 +227,7 @@
       const publicDataJobsRef = collection(db, 'artifacts', appIdPath, 'public', 'data', 'jobs');
       const publicDataTalentsRef = collection(db, 'artifacts', appIdPath, 'public', 'data', 'talents');
       const publicDataUsersRef = collection(db, 'artifacts', appIdPath, 'public', 'data', 'users');
+      const publicDataChatsRef = collection(db, 'artifacts', appIdPath, 'public', 'data', 'chats');
       const publicDataConfigRef = doc(db, 'artifacts', appIdPath, 'public', 'data', 'config', 'qris');
 
       // Sinkronisasi Pengguna
@@ -241,7 +240,7 @@
           AppState.users = syncedUsers;
           renderApp();
         }
-      }, (error) => console.log("Firestore Users backup."));
+      }, (error) => console.log("Kesalahan atau cadangan sinkronisasi pengguna lokal aktif."));
 
       // Sinkronisasi Pekerjaan
       onSnapshot(publicDataJobsRef, (snapshot) => {
@@ -253,7 +252,7 @@
           AppState.jobs = syncedJobs;
           renderApp();
         }
-      }, (error) => console.log("Firestore Jobs backup."));
+      }, (error) => console.log("Kesalahan atau cadangan sinkronisasi pekerjaan lokal aktif."));
 
       // Sinkronisasi Jasa
       onSnapshot(publicDataTalentsRef, (snapshot) => {
@@ -265,7 +264,19 @@
           AppState.talents = syncedTalents;
           renderApp();
         }
-      }, (error) => console.log("Firestore Talents backup."));
+      }, (error) => console.log("Kesalahan atau cadangan sinkronisasi keahlian lokal aktif."));
+
+      // Sinkronisasi Diskusi/Obrolan
+      onSnapshot(publicDataChatsRef, (snapshot) => {
+        const syncedChats = [];
+        snapshot.forEach(doc => {
+          syncedChats.push({ id: doc.id, ...doc.data() });
+        });
+        if (syncedChats.length > 0) {
+          AppState.chats = syncedChats;
+          renderApp();
+        }
+      }, (error) => console.log("Kesalahan atau cadangan sinkronisasi diskusi lokal aktif."));
 
       // Sinkronisasi QRIS khusus
       onSnapshot(publicDataConfigRef, (snapshot) => {
@@ -276,18 +287,25 @@
             renderApp();
           }
         }
-      }, (error) => console.log("Firestore QRIS config offline."));
+      }, (error) => console.log("Config QRIS tidak terdeteksi di cloud, menggunakan cadangan lokal."));
     };
 
-    // Jalankan Sistem Utama
+    // Jalankan Autentikasi dan Sinkronisasi Sistem Utama
     initFirebaseAuth().then(() => {
       const loader = document.getElementById("initial-loader");
       if (loader) loader.style.display = "none";
-      syncFirestoreData();
+      
+      // Dengarkan perubahan login untuk menyalakan sinkronisasi Firestore
+      onAuthStateChanged(auth, (user) => {
+        if (user) {
+          syncFirestoreData();
+        }
+      });
+      
       renderApp();
     });
 
-    // Helper navigasi tab
+    // Navigasi Tab
     window.changeTab = function(tabName) {
       if ((tabName === 'chats' || tabName === 'profile') && (!AppState.isLoggedIn || AppState.isGuestMode)) {
         openGuestWarningModal("Mengakses halaman pribadi / obrolan");
@@ -302,7 +320,7 @@
       }
       AppState.activeTab = tabName;
 
-      // Populate form data profile ketika berpindah ke profile
+      // Isi form ketika tab profil aktif
       if (tabName === 'profile') {
         const currentUserData = AppState.users.find(u => u.id === AppState.currentUserId);
         if (currentUserData) {
@@ -327,7 +345,7 @@
       renderApp();
     };
 
-    // Submisi Login
+    // Login Form Submit
     window.handleLoginSubmit = function(e) {
       e.preventDefault();
       const phone = document.getElementById("login-phone").value;
@@ -347,6 +365,7 @@
       }
     };
 
+    // Registrasi Warga Baru
     window.handleRegisterSubmit = function(e) {
       e.preventDefault();
       const name = document.getElementById("reg-name").value;
@@ -358,7 +377,7 @@
       const answer = document.getElementById("reg-answer").value;
 
       if (!/^\d{4}$/.test(unit)) {
-        showToast("⚠️ Nomor unit harus 4 digit angka!");
+        showToast("⚠️ Nomor unit harus berupa 4 digit angka!");
         return;
       }
 
@@ -386,7 +405,8 @@
       
       if (db) {
         setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'users', newId), newUser)
-          .catch(err => console.log("Register offline stored."));
+          .then(() => showToast(`🎉 Berhasil Daftar & Menyimpan Data Cloud!`))
+          .catch(err => console.log("Gagal simpan online. Disimpan lokal."));
       }
 
       AppState.isLoggedIn = true;
@@ -394,10 +414,10 @@
       AppState.currentUserId = newId;
       AppState.activeTab = "jobs";
       closeAuthModal();
-      showToast(`🎉 Selamat Bergabung, ${name}!`);
       renderApp();
     };
 
+    // Logout
     window.handleLogoutAction = function() {
       AppState.isLoggedIn = false;
       AppState.isGuestMode = true;
@@ -414,20 +434,21 @@
         AppState.users = AppState.users.map(u => u.id === userId ? { ...u, password: "Nuansa123" } : u);
         if (db) {
           updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'users', userId), { password: "Nuansa123" })
-            .catch(err => console.log("Sandi offline."));
+            .catch(err => console.log("Gagal update cloud."));
         }
         showToast("🔑 Sandi berhasil direset menjadi Nuansa123!");
         renderApp();
       }
     };
 
+    // Toggle Verifikasi Warga oleh Admin
     window.toggleUserVerification = function(userId) {
       AppState.users = AppState.users.map(u => {
         if (u.id === userId) {
           const newVal = !u.verified;
           if (db) {
             updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'users', userId), { verified: newVal })
-              .catch(e => console.log("Verify offline."));
+              .catch(e => console.log("Gagal verifikasi online."));
           }
           return { ...u, verified: newVal };
         }
@@ -437,6 +458,7 @@
       renderApp();
     };
 
+    // Hapus Loker oleh Admin
     window.deleteJobByAdmin = function(jobId) {
       if (confirm("Hapus postingan loker ini?")) {
         AppState.jobs = AppState.jobs.filter(j => j.id !== jobId);
@@ -445,6 +467,7 @@
       }
     };
 
+    // Unggah Foto Profil Warga
     window.handleProfileImageUpload = function(event) {
       const file = event.target.files[0];
       if (file) {
@@ -455,7 +478,7 @@
         const reader = new FileReader();
         reader.onloadend = () => {
           AppState.editAvatar = reader.result;
-          showToast("📸 Foto profil berhasil dimuat!");
+          showToast("📸 Pratinjau foto profil berhasil dimuat!");
           renderApp();
         };
         reader.readAsDataURL(file);
@@ -479,9 +502,8 @@
               image: reader.result,
               updatedAt: new Date().toISOString()
             }).then(() => {
-              showToast("📱 QRIS Donasi berhasil diunggah ke cloud!");
+              showToast("📱 QRIS Donasi berhasil diperbarui di cloud!");
             }).catch(e => {
-              console.log("Offline save QRIS.");
               showToast("📱 QRIS tersimpan lokal (Offline).");
             });
           } else {
@@ -493,6 +515,7 @@
       }
     };
 
+    // Simpan Perubahan Profil Warga
     window.handleSaveProfileSubmit = function(e) {
       e.preventDefault();
       const name = document.getElementById("edit-name").value;
@@ -514,7 +537,7 @@
           };
           if (db) {
             setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'users', u.id), updated)
-              .catch(err => console.log("Profile offline."));
+              .catch(err => console.log("Gagal memperbarui profil online."));
           }
           return updated;
         }
@@ -525,30 +548,56 @@
       renderApp();
     };
 
+    // Memulai Chat baru berdasarkan Lowongan Pekerjaan
     window.initiateChatFromJob = function(jobId) {
       if (!checkAccess("Mengirim pesan / berdiskusi pekerjaan")) return;
-      const job = AppState.jobs.find(j => j.id === jobId);
-      if (!job) return;
+      
+      // Penanganan khusus tanya jasa warga
+      let job = AppState.jobs.find(j => j.id === jobId);
+      let isTalentInquiry = jobId.startsWith("talent-inq-");
+      let receiverId = "";
+      let jobTitle = "";
 
-      if (job.posterId === AppState.currentUserId) {
+      if (isTalentInquiry) {
+        const talentId = jobId.replace("talent-inq-", "");
+        const talent = AppState.talents.find(t => t.id === talentId);
+        if (!talent) return;
+        receiverId = talent.userId;
+        jobTitle = `Tanya Jasa: ${talent.skill}`;
+      } else {
+        if (!job) return;
+        receiverId = job.posterId;
+        jobTitle = job.title;
+      }
+
+      if (receiverId === AppState.currentUserId) {
         showToast("⚠️ Anda tidak bisa bernegosiasi dengan diri sendiri.");
         return;
       }
 
-      let existingChat = AppState.chats.find(c => c.jobId === job.id && c.parties.includes(AppState.currentUserId) && c.parties.includes(job.posterId));
+      let existingChat = AppState.chats.find(c => 
+        c.jobId === jobId && 
+        c.parties.includes(AppState.currentUserId) && 
+        c.parties.includes(receiverId)
+      );
 
       if (!existingChat) {
         const newChatId = `chat-${Date.now()}`;
         const newChat = {
           id: newChatId,
-          jobId: job.id,
-          parties: [AppState.currentUserId, job.posterId],
+          jobId: jobId,
+          parties: [AppState.currentUserId, receiverId],
           messages: [
-            { senderId: "system", text: `💬 Ruang obrolan dimulai untuk: "${job.title}". Diskusikan rincian upah di sini secara kekeluargaan.`, time: "Sistem" }
+            { senderId: "system", text: `💬 Ruang obrolan dimulai untuk: "${jobTitle}". Diskusikan rincian upah atau pengerjaan secara kekeluargaan.`, time: "Sistem" }
           ]
         };
         AppState.chats.push(newChat);
         AppState.activeChatId = newChatId;
+
+        if (db) {
+          setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'chats', newChatId), newChat)
+            .catch(e => console.log("Gagal membuat chat di cloud."));
+        }
       } else {
         AppState.activeChatId = existingChat.id;
       }
@@ -556,71 +605,125 @@
       renderApp();
     };
 
+    // Mengirim pesan chat
     window.sendChatMessageAction = function(e) {
       e.preventDefault();
       const text = document.getElementById("chat-message-input").value;
       if (!text.trim() || !AppState.activeChatId) return;
 
+      const activeChat = AppState.chats.find(c => c.id === AppState.activeChatId);
+      if (!activeChat) return;
+
+      const updatedChat = {
+        ...activeChat,
+        messages: [
+          ...activeChat.messages,
+          { 
+            senderId: AppState.currentUserId, 
+            text, 
+            time: new Date().toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' }) 
+          }
+        ]
+      };
+
       AppState.chats = AppState.chats.map(chat => {
         if (chat.id === AppState.activeChatId) {
-          return {
-            ...chat,
-            messages: [
-              ...chat.messages,
-              { senderId: AppState.currentUserId, text, time: new Date().toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' }) }
-            ]
-          };
+          return updatedChat;
         }
         return chat;
       });
+
+      if (db) {
+        setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'chats', AppState.activeChatId), updatedChat)
+          .catch(e => console.log("Gagal kirim pesan ke cloud."));
+      }
 
       document.getElementById("chat-message-input").value = "";
       renderApp();
     };
 
+    // Menyepakati Pekerjaan
     window.markJobAsAgreed = function(chatId) {
       const chat = AppState.chats.find(c => c.id === chatId);
-      if (!chat) return;
+      if (!chat || !chat.jobId) return;
 
+      // Update status pekerjaan lokal & cloud
       AppState.jobs = AppState.jobs.map(j => {
         if (j.id === chat.jobId) {
-          return { ...j, status: "Dikerjakan", workerId: chat.parties.find(p => p !== j.posterId) };
+          const updatedJob = { ...j, status: "Dikerjakan", workerId: chat.parties.find(p => p !== j.posterId) };
+          if (db) {
+            setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'jobs', j.id), updatedJob)
+              .catch(e => console.log("Gagal update pekerjaan di cloud."));
+          }
+          return updatedJob;
         }
         return j;
       });
 
+      // Tambahkan pesan sistem ke chat lokal & cloud
       chat.messages.push({
         senderId: "system",
-        text: `🤝 Pekerjaan telah DISEPAKATI bersama! Pekerja kini sedang memproses tugas.`,
+        text: `🤝 Pekerjaan telah DISEPAKATI bersama! Pekerja sedang memproses tugas.`,
         time: "Sistem"
       });
 
-      showToast("🤝 Pekerjaan berhasil disepakati bersama!");
+      if (db) {
+        setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'chats', chatId), chat)
+          .catch(e => console.log("Gagal kirim pesan sistem kesepakatan ke cloud."));
+      }
+
+      showToast("🤝 Pekerjaan berhasil disepakati!");
       renderApp();
     };
 
+    // Menyelesaikan Pekerjaan (+ Menambah Poin Gotong Royong)
     window.markJobAsFinished = function(chatId) {
       const chat = AppState.chats.find(c => c.id === chatId);
-      if (!chat) return;
+      if (!chat || !chat.jobId) return;
 
+      // Update status pekerjaan menjadi Selesai
       AppState.jobs = AppState.jobs.map(j => {
         if (j.id === chat.jobId) {
-          return { ...j, status: "Selesai" };
+          const updatedJob = { ...j, status: "Selesai" };
+          if (db) {
+            setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'jobs', j.id), updatedJob)
+              .catch(e => console.log("Gagal update pekerjaan selesai di cloud."));
+          }
+          return updatedJob;
         }
         return j;
       });
 
+      // Berikan bonus +25 Poin ke Pekerja
+      const workerId = chat.parties.find(p => p !== AppState.currentUserId);
+      AppState.users = AppState.users.map(u => {
+        if (u.id === workerId) {
+          const updatedUser = { ...u, points: (u.points || 0) + 25 };
+          if (db) {
+            setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'users', u.id), updatedUser)
+              .catch(e => console.log("Gagal update poin warga di cloud."));
+          }
+          return updatedUser;
+        }
+        return u;
+      });
+
       chat.messages.push({
         senderId: "system",
-        text: `🎉 Pekerjaan dinyatakan SELESAI! Pekerja menerima apresiasi +25 Poin.`,
+        text: `🎉 Pekerjaan dinyatakan SELESAI! Pekerja menerima apresiasi +25 Poin Gotong Royong.`,
         time: "Sistem"
       });
 
-      showToast("🎉 Hebat! Pekerjaan diselesaikan.");
+      if (db) {
+        setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'chats', chatId), chat)
+          .catch(e => console.log("Gagal kirim pesan sistem penyelesaian ke cloud."));
+      }
+
+      showToast("🎉 Hebat! Tugas telah diselesaikan.");
       renderApp();
     };
 
-    // Modal Control Utils
+    // Modal Utilities
     window.openAuthModal = function(tabName) {
       AppState.authTab = tabName;
       setIsAuthModalOpen(true);
@@ -662,7 +765,6 @@
       if (modal) modal.style.display = "none";
     };
 
-    // Penampil Foto Utuh (Agar foto profil/QRIS dapat dilihat utuh tanpa terpotong)
     window.openFullPhotoModal = function(imageUrl, name) {
       const modal = document.getElementById("full-photo-modal");
       if (modal) {
@@ -677,7 +779,6 @@
       if (modal) modal.style.display = "none";
     };
 
-    // Proteksi Akses Tamu
     window.checkAccess = function(actionName) {
       if (!AppState.isLoggedIn || AppState.isGuestMode) {
         openGuestWarningModal(actionName);
@@ -686,7 +787,7 @@
       return true;
     };
 
-    // Posting Lowongan & Jasa
+    // Kirim Lowongan Pekerjaan Baru
     window.handleCreateJobSubmit = function(e) {
       e.preventDefault();
       const title = document.getElementById("new-job-title").value;
@@ -710,14 +811,15 @@
       AppState.jobs.push(newJob);
       if (db) {
         setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'jobs', newJobId), newJob)
-          .catch(e => console.log("offline"));
+          .catch(e => console.log("Gagal membuat pekerjaan online"));
       }
 
       document.getElementById("job-creation-modal").style.display = "none";
-      showToast("💼 Lowongan kerja berhasil ditayangkan!");
+      showToast("💼 Lowongan pekerjaan berhasil ditayangkan!");
       renderApp();
     };
 
+    // Kirim Jasa Baru
     window.handleCreateTalentSubmit = function(e) {
       e.preventDefault();
       const skill = document.getElementById("new-talent-skill").value;
@@ -736,7 +838,7 @@
       AppState.talents.push(newTalent);
       if (db) {
         setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'talents', newTalentId), newTalent)
-          .catch(e => console.log("offline"));
+          .catch(e => console.log("Gagal membuat penawaran jasa online"));
       }
 
       document.getElementById("talent-creation-modal").style.display = "none";
@@ -744,15 +846,7 @@
       renderApp();
     };
 
-    window.quickLoginAction = function(role) {
-      if (role === 'admin') {
-        handleQuickLogin("u-admin");
-      } else {
-        handleQuickLogin("u-1");
-      }
-    };
-
-    // --- (D) THE RENDERING ENGINE ---
+    // RENDERING ENGINE UTAMA
     function renderApp() {
       const appDiv = document.getElementById("app");
       const currentUserData = AppState.users.find(u => u.id === AppState.currentUserId) || null;
@@ -777,7 +871,7 @@
 
       let contentHtml = "";
 
-      // Logika Penentuan Tampilan Tab
+      // Logika Penentuan Tampilan Tab Aktif
       if (AppState.activeTab === "jobs") {
         contentHtml = `
           <div class="space-y-6">
@@ -896,7 +990,19 @@
         const myChats = AppState.chats.filter(c => c.parties.includes(AppState.currentUserId));
         const activeChat = AppState.chats.find(c => c.id === AppState.activeChatId);
         const otherParty = activeChat ? getPosterDetail(activeChat.parties.find(p => p !== AppState.currentUserId)) : null;
-        const chatJob = activeChat ? AppState.jobs.find(j => j.id === activeChat.jobId) : null;
+        
+        let chatJob = null;
+        let jobTitleDisplay = "Diskusi Umum";
+        if (activeChat) {
+          if (activeChat.jobId.startsWith("talent-inq-")) {
+            const talentId = activeChat.jobId.replace("talent-inq-", "");
+            const talent = AppState.talents.find(t => t.id === talentId);
+            jobTitleDisplay = talent ? `Tanya Jasa: ${talent.skill}` : "Tanya Jasa";
+          } else {
+            chatJob = AppState.jobs.find(j => j.id === activeChat.jobId);
+            jobTitleDisplay = chatJob ? chatJob.title : "Diskusi Umum";
+          }
+        }
 
         contentHtml = `
           <div class="bg-white rounded-3xl border border-slate-200 shadow-lg overflow-hidden grid grid-cols-1 lg:grid-cols-12 min-h-[500px]">
@@ -907,7 +1013,16 @@
               </div>
               <div class="flex-grow overflow-y-auto divide-y divide-slate-150">
                 ${myChats.map(c => {
-                  const jobRef = AppState.jobs.find(j => j.id === c.jobId) || { title: "Diskusi Umum" };
+                  let discussionTitle = "Diskusi Umum";
+                  if (c.jobId.startsWith("talent-inq-")) {
+                    const talentId = c.jobId.replace("talent-inq-", "");
+                    const talent = AppState.talents.find(t => t.id === talentId);
+                    discussionTitle = talent ? `Tanya Jasa: ${talent.skill}` : "Tanya Jasa";
+                  } else {
+                    const jobRef = AppState.jobs.find(j => j.id === c.jobId);
+                    discussionTitle = jobRef ? jobRef.title : "Diskusi Pekerjaan";
+                  }
+
                   const other = getPosterDetail(c.parties.find(p => p !== AppState.currentUserId));
                   const lastMsg = c.messages[c.messages.length - 1];
                   const isSelected = AppState.activeChatId === c.id;
@@ -920,7 +1035,7 @@
                           <span class="font-bold truncate text-slate-800">${other.name}</span>
                           <span class="text-[8px] text-slate-400">${lastMsg ? lastMsg.time : ""}</span>
                         </div>
-                        <p class="text-[9px] text-emerald-800 font-semibold truncate">${jobRef.title}</p>
+                        <p class="text-[9px] text-emerald-800 font-semibold truncate">${discussionTitle}</p>
                         <p class="text-[10px] text-slate-500 truncate mt-1">${lastMsg ? lastMsg.text : ""}</p>
                       </div>
                     </button>
@@ -937,17 +1052,17 @@
                     <img src="${otherParty.avatar}" onclick="openFullPhotoModal('${otherParty.avatar}', '${otherParty.name}')" class="w-8 h-8 rounded-full object-cover aspect-square cursor-zoom-in" alt="avatar" />
                     <div>
                       <h4 class="font-bold text-slate-800">${otherParty.name} (${otherParty.unit})</h4>
-                      ${chatJob ? `<p class="text-[9px] text-slate-400">${chatJob.title}</p>` : ""}
+                      <p class="text-[9px] text-slate-400">${jobTitleDisplay}</p>
                     </div>
                   </div>
 
                   ${chatJob ? `
                     <div class="flex space-x-1.5">
                       ${chatJob.status === 'Aktif' && chatJob.posterId === otherParty.id ? `
-                        <button onclick="markJobAsAgreed('${activeChat.id}')" class="bg-amber-500 hover:bg-amber-400 text-slate-950 font-black px-3 py-1.5 rounded-lg text-[9px] transition">🤝 Sepakati</button>
+                        <button onclick="markJobAsAgreed('${activeChat.id}')" class="bg-amber-500 hover:bg-amber-400 text-slate-950 font-black px-3 py-1.5 rounded-lg text-[9px] transition shadow-sm">🤝 Sepakati</button>
                       ` : ""}
                       ${chatJob.status === 'Dikerjakan' && chatJob.posterId === AppState.currentUserId ? `
-                        <button onclick="markJobAsFinished('${activeChat.id}')" class="bg-emerald-600 hover:bg-emerald-700 text-white font-black px-3 py-1.5 rounded-lg text-[9px] transition">✅ Selesai</button>
+                        <button onclick="markJobAsFinished('${activeChat.id}')" class="bg-emerald-600 hover:bg-emerald-700 text-white font-black px-3 py-1.5 rounded-lg text-[9px] transition shadow-sm">✅ Selesai</button>
                       ` : ""}
                     </div>
                   ` : ""}
@@ -985,7 +1100,7 @@
                     class="flex-grow px-4 py-2.5 border rounded-xl text-xs sm:text-sm focus:outline-none focus:ring-1 focus:ring-emerald-500"
                     required
                   />
-                  <button type="submit" class="bg-emerald-600 hover:bg-emerald-700 text-white font-bold px-4 py-2.5 rounded-xl text-xs sm:text-sm transition">Kirim</button>
+                  <button type="submit" class="bg-emerald-600 hover:bg-emerald-700 text-white font-bold px-4 py-2.5 rounded-xl text-xs sm:text-sm transition shadow-sm">Kirim</button>
                 </form>
               ` : `
                 <div class="h-full flex flex-col justify-center items-center p-12 text-slate-400 text-center space-y-2">
@@ -1009,12 +1124,12 @@
               <div>
                 <h3 class="text-lg font-extrabold text-slate-900">${currentUserData.name}</h3>
                 <p class="text-xs text-slate-500 mt-1">Unit: ${currentUserData.unit}</p>
-                <span class="inline-block mt-2 bg-emerald-50 text-emerald-800 font-bold text-xs px-3 py-1 rounded-full">
+                <span class="inline-block mt-2 bg-emerald-50 text-emerald-800 font-bold text-xs px-3 py-1 rounded-full border border-emerald-200">
                   🏆 ${currentUserData.points} Poin Gotong Royong
                 </span>
               </div>
 
-              <button onclick="handleLogoutAction()" class="w-full bg-rose-50 hover:bg-rose-100 text-rose-800 font-bold py-2.5 rounded-2xl text-xs transition border border-rose-200">
+              <button onclick="handleLogoutAction()" class="w-full bg-rose-50 hover:bg-rose-100 text-rose-800 font-bold py-2.5 rounded-2xl text-xs transition border border-rose-200 shadow-sm">
                 Keluar / Logout 🚪
               </button>
             </div>
@@ -1096,7 +1211,7 @@
             <!-- Upload File QRIS Baru oleh Admin -->
             <div class="bg-white rounded-3xl border p-6 shadow-sm">
               <h3 class="font-extrabold text-slate-950 mb-3 text-sm">📤 Unggah / Ganti Gambar QRIS Donasi</h3>
-              <p class="text-xs text-slate-400 mb-4 font-light">Atur QRIS Donasi Server yang akan ditampilkan kepada warga. Foto terunggah akan ditampilkan utuh.</p>
+              <p class="text-xs text-slate-400 mb-4 font-light">Atur QRIS Donasi Server yang akan ditampilkan kepada warga. Foto terunggah akan disimpan dalam Cloud Firestore.</p>
               <div class="flex flex-col md:flex-row items-center gap-6 bg-slate-50 p-4 rounded-2xl border border-slate-200">
                 <div class="w-32 h-32 md:w-40 md:h-40 bg-white border rounded-2xl p-2 shadow-inner flex items-center justify-center overflow-hidden">
                   <img src="${AppState.qrisImage}" onclick="openFullPhotoModal('${AppState.qrisImage}', 'QRIS Keuangan')" class="max-w-full max-h-full object-contain cursor-zoom-in" alt="QRIS Preview" />
@@ -1164,12 +1279,12 @@
           </div>
         `;
       } else {
-        // Fallback info tab (about)
+        // Tentang NuansaHub (Halaman Bantuan/Info)
         contentHtml = `
           <div class="bg-white border border-slate-200 rounded-3xl p-8 max-w-2xl mx-auto space-y-4 shadow-sm animate-fade-in">
             <h3 class="font-extrabold text-lg text-slate-950">Mengenai NuansaHub</h3>
             <p class="text-xs sm:text-sm text-slate-600 leading-relaxed font-light">
-              **NuansaHub** adalah inovasi mandiri yang didirikan dan dipimpin oleh **edhos (Admin)** guna menggerakkan ekonomi mikro berbasis kegotongroyongan di lingkungan apartemen **Nuansa Pondok Kelapa** (meliputi Menara Samawa & Menara Swasana). 
+              <strong>NuansaHub</strong> adalah inovasi mandiri yang didirikan dan dipimpin oleh <strong>edhos (Admin)</strong> guna menggerakkan ekonomi mikro berbasis kegotongroyongan di lingkungan apartemen <strong>Nuansa Pondok Kelapa</strong> (meliputi Menara Samawa & Menara Swasana). 
             </p>
             <p class="text-xs sm:text-sm text-slate-600 leading-relaxed font-light">
               Melalui aplikasi ini, sesama warga dapat berinteraksi, menyewa jasa profesional lokal, dan memposting tugas serabutan harian secara terpadu tanpa perantara.
@@ -1198,7 +1313,7 @@
                   <span class="hidden sm:inline font-bold">${currentUserData.name}</span>
                 </button>
                 ${currentUserData.role === 'admin' ? `
-                  <button onclick="changeTab('admin')" class="bg-amber-500 text-slate-950 px-3 py-1.5 rounded-xl text-xs font-extrabold shadow">🛡️ Admin</button>
+                  <button onclick="changeTab('admin')" class="bg-amber-500 text-slate-950 px-3 py-1.5 rounded-xl text-xs font-extrabold shadow-md">🛡️ Admin</button>
                 ` : ""}
               ` : `
                 <button onclick="openAuthModal('login')" class="bg-gradient-to-r from-amber-400 to-amber-500 text-emerald-950 font-black px-4 py-2 rounded-xl text-xs shadow-md">🔑 Masuk / Daftar</button>
@@ -1221,7 +1336,7 @@
                   Warga Saling Bantu, Cari Kerja & Jasa.
                 </h2>
                 <p class="text-emerald-100/90 text-sm sm:text-base max-w-xl leading-relaxed font-light">
-                  Platform mikro-ekonomi terpercaya eksklusif warga **Nuansa Pondok Kelapa**. Hubungi tetangga seberang unit atau seberang tower secara aman dan kekeluargaan.
+                  Platform mikro-ekonomi terpercaya eksklusif warga <strong>Nuansa Pondok Kelapa</strong>. Hubungi tetangga seberang unit atau seberang tower secara aman dan kekeluargaan.
                 </p>
                 <div class="flex flex-wrap gap-3 pt-2">
                   <button onclick="if(checkAccess('Membuat lowongan baru')) document.getElementById('job-creation-modal').style.display='flex'" class="bg-gradient-to-r from-amber-400 to-amber-500 text-slate-950 font-extrabold px-5 py-3 rounded-2xl text-xs sm:text-sm shadow-lg">➕ Pasang Lowongan Kerja</button>
@@ -1236,7 +1351,7 @@
                   <h3 class="font-extrabold text-sm tracking-wide uppercase">Dukungan Server edhos</h3>
                 </div>
                 <p class="text-xs text-slate-200 leading-relaxed font-light">
-                  Aplikasi ini dikembangkan sukarela oleh **edhos (Admin)**. Jika membantu keuangan atau mempermudah keseharian Anda, berikan dukungan sukarela untuk server kami.
+                  Aplikasi ini dikembangkan sukarela oleh <strong>edhos (Admin)</strong>. Jika membantu keuangan atau mempermudah keseharian Anda, berikan dukungan sukarela untuk server kami.
                 </p>
                 <button onclick="openQRISModal()" class="w-full bg-gradient-to-r from-emerald-500 to-teal-500 text-white font-extrabold py-3 rounded-2xl text-xs transition shadow-md">📱 Scan QRIS Dukungan</button>
               </div>
@@ -1305,8 +1420,7 @@
       `;
     }
 
-    // Dynamic rendering helper untuk Autentikasi (Ditingkatkan dengan Tab Switcher & Akses Cepat Daftar)
-    // Diikat ke window agar dapat dipanggil dari inline HTML event handlers (seperti onclick)
+    // Dynamic rendering helper untuk Autentikasi
     window.renderAuthModalContent = function() {
       const authContent = document.getElementById("auth-modal-body");
       if (!authContent) return;
@@ -1315,7 +1429,6 @@
       const isRegister = AppState.authTab === 'register';
       const isForgot = AppState.authTab === 'forgot';
 
-      // HTML Tab Switcher
       let tabsHtml = `
         <div class="flex border-b border-slate-200 mb-5 text-xs font-bold">
           <button type="button" onclick="AppState.authTab = 'login'; renderAuthModalContent();" class="w-1/2 pb-3 text-center border-b-2 transition-all ${isLogin ? 'border-emerald-700 text-emerald-800' : 'border-transparent text-slate-400 hover:text-slate-600'}">
@@ -1393,7 +1506,7 @@
                 <input type="text" id="reg-answer" placeholder="Tuliskan jawaban pengingat..." class="w-full px-3.5 py-2 border rounded-xl text-xs bg-slate-50 focus:outline-none" required />
               </div>
             </div>
-            <button type="submit" class="w-full bg-emerald-750 hover:bg-emerald-700 text-white font-extrabold py-3 rounded-xl text-xs transition">Daftar Akun Baru ✨</button>
+            <button type="submit" class="w-full bg-emerald-700 hover:bg-emerald-600 text-white font-extrabold py-3 rounded-xl text-xs transition shadow-md">Daftar Akun Baru ✨</button>
           </form>
         `;
       } else if (isForgot) {
@@ -1403,7 +1516,7 @@
             <form onsubmit="handleForgotSearchAction(event)" class="space-y-3">
               <p class="text-[11px] text-slate-500 font-light">Masukkan nomor WhatsApp Anda untuk mencocokkan pertanyaan keamanan.</p>
               <input type="text" id="forgot-phone-input" placeholder="08123456000" class="w-full px-3 py-2 border rounded-xl text-xs focus:outline-none" required />
-              <button type="submit" class="w-full bg-emerald-700 text-white font-bold py-2.5 rounded-xl text-xs">Cari Akun 🔍</button>
+              <button type="submit" class="w-full bg-emerald-700 text-white font-bold py-2.5 rounded-xl text-xs shadow-md">Cari Akun 🔍</button>
             </form>
           `;
         } else if (AppState.forgotStep === 2 && AppState.forgotUserFound) {
@@ -1414,7 +1527,7 @@
                 <span>"${AppState.forgotUserFound.securityQuestion}"</span>
               </div>
               <input type="text" id="forgot-answer-input" placeholder="Masukkan jawaban..." class="w-full px-3 py-2 border rounded-xl text-xs focus:outline-none" required />
-              <button type="submit" class="w-full bg-emerald-700 text-white font-bold py-2.5 rounded-xl text-xs">Kirim Jawaban ✅</button>
+              <button type="submit" class="w-full bg-emerald-700 text-white font-bold py-2.5 rounded-xl text-xs shadow-md">Kirim Jawaban ✅</button>
             </form>
           `;
         } else if (AppState.forgotStep === 3) {
@@ -1422,7 +1535,7 @@
             <form onsubmit="handleForgotResetPassAction(event)" class="space-y-3">
               <p class="text-[11px] text-emerald-800 font-bold">✓ Terverifikasi! Buat sandi baru.</p>
               <input type="password" id="forgot-new-pass-input" placeholder="Sandi baru..." class="w-full px-3 py-2 border rounded-xl text-xs focus:outline-none" required />
-              <button type="submit" class="w-full bg-amber-500 text-slate-900 font-extrabold py-2.5 rounded-xl text-xs">Simpan Sandi 💾</button>
+              <button type="submit" class="w-full bg-amber-500 text-slate-900 font-extrabold py-2.5 rounded-xl text-xs shadow-md">Simpan Sandi 💾</button>
             </form>
           `;
         }
@@ -1470,7 +1583,12 @@
       if (newPass) {
         AppState.users = AppState.users.map(u => {
           if (u.id === AppState.forgotUserFound.id) {
-            return { ...u, password: newPass };
+            const updatedUser = { ...u, password: newPass };
+            if (db) {
+              setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'users', u.id), updatedUser)
+                .catch(err => console.log("Gagal memperbarui sandi online."));
+            }
+            return updatedUser;
           }
           return u;
         });
@@ -1483,17 +1601,17 @@
       }
     };
 
-    // Inisialisasi Rendering Pertama
+    // Rendering Pertama Kali setelah File siap
     window.onload = function() {
       renderApp();
     };
 
   </script>
 
-  <!-- ================= DYNAMIC TOAST ALERTS CONTAINER ================= -->
+  <!-- ================= NOTIFIKASI TOAST DITAMPILKAN DISINI ================= -->
   <div id="toast-alert" class="fixed top-5 left-1/2 transform -translate-x-1/2 z-50 hidden"></div>
 
-  <!-- ================= MODAL 1: LOGIN & DAFTAR GABUNGAN ================= -->
+  <!-- ================= MODAL 1: AUTENTIKASI (LOGIN & DAFTAR) ================= -->
   <div id="auth-modal" class="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 hidden items-center justify-center p-4">
     <div class="bg-white rounded-3xl shadow-2xl w-full max-w-sm overflow-hidden animate-zoom-in">
       <div class="bg-emerald-950 text-white px-6 py-4 flex justify-between items-center border-b border-emerald-900">
@@ -1504,7 +1622,7 @@
     </div>
   </div>
 
-  <!-- ================= MODAL 2: AJAKAN MASUK BAGI TAMU (PROTEKSI GUEST) ================= -->
+  <!-- ================= MODAL 2: PERINGATAN AKSES TAMU ================= -->
   <div id="guest-warning-modal" class="fixed inset-0 bg-black/75 backdrop-blur-sm z-50 hidden items-center justify-center p-4">
     <div class="bg-white rounded-3xl shadow-xl w-full max-w-sm text-center p-6 space-y-4">
       <span class="text-4xl">🔑</span>
@@ -1512,19 +1630,19 @@
       <p class="text-xs text-slate-500 leading-relaxed font-light">
         Anda mencoba untuk melakukan: <br>
         <strong id="guest-warning-action" class="text-emerald-800"></strong>. <br>
-        Demi keamanan warga **Nuansa Pondok Kelapa**, fitur ini memerlukan akun terdaftar.
+        Demi keamanan warga <strong>Nuansa Pondok Kelapa</strong>, fitur ini memerlukan akun terdaftar.
       </p>
       <div class="flex flex-col gap-2 pt-1">
-        <button onclick="closeGuestWarningModal(); openAuthModal('register')" class="w-full bg-emerald-700 hover:bg-emerald-600 text-white font-extrabold py-3 rounded-xl text-xs transition">📝 Daftar Akun Warga Baru</button>
-        <button onclick="closeGuestWarningModal(); openAuthModal('login')" class="w-full bg-slate-100 hover:bg-slate-200 text-slate-750 font-bold py-2.5 rounded-xl text-xs transition">🔐 Masuk / Login</button>
+        <button onclick="closeGuestWarningModal(); openAuthModal('register')" class="w-full bg-emerald-700 hover:bg-emerald-600 text-white font-extrabold py-3 rounded-xl text-xs transition shadow-md">📝 Daftar Akun Warga Baru</button>
+        <button onclick="closeGuestWarningModal(); openAuthModal('login')" class="w-full bg-slate-100 hover:bg-slate-200 text-slate-750 font-bold py-2.5 rounded-xl text-xs transition border">🔐 Masuk / Login</button>
         <button onclick="closeGuestWarningModal()" class="text-slate-400 font-bold text-[10px] underline">Kembali Melihat Beranda</button>
       </div>
     </div>
   </div>
 
-  <!-- ================= MODAL 3: DONASI QRIS ================= -->
+  <!-- ================= MODAL 3: DONASI QRIS DUKUNGAN ================= -->
   <div id="qris-donation-modal" class="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 hidden items-center justify-center p-4">
-    <div class="bg-white rounded-3xl shadow-2xl w-full max-w-sm text-center p-6 space-y-4 border border-slate-200">
+    <div class="bg-white rounded-3xl shadow-2xl w-full max-w-sm text-center p-6 space-y-4 border border-slate-200 animate-zoom-in">
       <div class="flex justify-between items-center pb-2 border-b">
         <div class="text-left">
           <h4 class="font-extrabold text-xs tracking-wider text-emerald-800 uppercase">QRIS Dukungan Server</h4>
@@ -1533,14 +1651,13 @@
         <button onclick="closeQRISModal()" class="text-slate-400 font-bold hover:text-slate-700">✕</button>
       </div>
       <div class="bg-slate-50 border rounded-2xl p-4 flex flex-col items-center">
-        <p class="text-base font-black text-slate-800">Dukungan NuansaHub</p>
+        <p class="text-base font-black text-slate-800">Dukungan Server NuansaHub</p>
         <div class="bg-white p-2.5 rounded-xl border my-3 shadow-inner max-w-[210px]">
-          <!-- Menggunakan src gambar dinamis dari AppState agar dapat diganti oleh admin secara langsung -->
-          <img src="https://api.qrserver.com/v1/create-qr-code/?size=250x250&data=00020101021226590016ID102004404154601189328400001020044045204541153033605802ID5911Seblak%20iZZi6009JAKARTA%20T61051344062070703A016304CAE3" id="qris-image-view" class="w-full h-auto object-contain cursor-zoom-in" onclick="openFullPhotoModal(document.getElementById('qris-image-view').src, 'QRIS Server')" alt="QRIS Seblak iZZi" />
+          <img src="" id="qris-image-view" class="w-full h-auto object-contain cursor-zoom-in" onclick="openFullPhotoModal(document.getElementById('qris-image-view').src, 'QRIS Server')" alt="QRIS Dukungan" onerror="this.src=AppState.qrisImage" />
         </div>
         <p class="text-[10px] text-slate-400">Klik gambar QRIS untuk memperbesar secara penuh.</p>
       </div>
-      <button onclick="closeQRISModal()" class="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold py-3 rounded-xl text-xs transition shadow">Saya Sudah Selesai Scan 🚀</button>
+      <button onclick="closeQRISModal()" class="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold py-3 rounded-xl text-xs transition shadow-md">Saya Sudah Selesai Scan 🚀</button>
     </div>
   </div>
 
@@ -1562,6 +1679,7 @@
             <select id="new-job-category" class="w-full px-2 py-1.5 border rounded-lg bg-white focus:outline-none">
               <option value="Serabutan">🔨 Serabutan</option>
               <option value="Profesional">👔 Profesional</option>
+              <option value="Info Loker">📢 Info Loker</option>
             </select>
           </div>
           <div>
@@ -1578,7 +1696,7 @@
     </div>
   </div>
 
-  <!-- ================= MODAL 5: PASANG JASA BARU ================= -->
+  <!-- ================= MODAL 5: PASANG PENAWARAN JASA BARU ================= -->
   <div id="talent-creation-modal" class="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 hidden items-center justify-center p-4">
     <div class="bg-white rounded-2xl shadow-2xl w-full max-w-sm overflow-hidden animate-zoom-in">
       <div class="bg-emerald-950 text-white px-5 py-3 flex justify-between items-center text-xs">
@@ -1599,13 +1717,13 @@
     </div>
   </div>
 
-  <!-- ================= MODAL 6: LIHAT FOTO UTUH ================= -->
+  <!-- ================= MODAL 6: TAMPILAN LIHAT FOTO UTUH / LEBIH BESAR ================= -->
   <div id="full-photo-modal" class="fixed inset-0 bg-black/90 backdrop-blur-sm z-[60] hidden items-center justify-center p-4">
     <div class="relative max-w-lg w-full flex flex-col items-center">
       <button onclick="closeFullPhotoModal()" class="absolute -top-10 right-0 text-white text-3xl font-light hover:text-slate-300">✕</button>
       <h4 id="full-photo-title" class="text-white text-xs font-bold tracking-wide mb-3 bg-emerald-950/80 px-4 py-1.5 rounded-full">Foto Lengkap</h4>
       <div class="bg-white p-2 rounded-2xl max-h-[80vh] overflow-hidden flex items-center justify-center shadow-2xl">
-        <img id="full-photo-img" src="" class="max-w-full max-h-[70vh] object-contain rounded-xl" alt="Foto Lengkap" />
+        <img id="full-photo-img" src="" class="max-w-full max-h-[70vh] object-contain rounded-xl shadow-inner" alt="Foto Lengkap" />
       </div>
     </div>
   </div>
