@@ -34,6 +34,13 @@
     .animate-slide-up {
       animation: slideUp 0.3s ease-out forwards;
     }
+    @keyframes zoomIn {
+      from { transform: scale(0.95); opacity: 0; }
+      to { transform: scale(1); opacity: 1; }
+    }
+    .animate-zoom-in {
+      animation: zoomIn 0.2s ease-out forwards;
+    }
   </style>
 </head>
 <body class="bg-slate-50 text-slate-800 pb-24 min-h-screen flex flex-col">
@@ -49,6 +56,9 @@
       <p class="text-xs text-emerald-300 mt-2 font-light">Menghubungkan ke Menara Samawa & Swasana</p>
     </div>
   </div>
+
+  <!-- LOAD SECURE EXTERNAL CONFIG -->
+  <script src="config.js"></script>
 
   <!-- FIREBASE SDK IMPORTS -->
   <script type="module">
@@ -75,7 +85,7 @@
       where
     } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
-    // --- (A) CONFIG CONFIGURATION ---
+    // Fallback konfigurasi jika config.js gagal termuat
     const defaultFirebaseConfig = {
       apiKey: "", 
       authDomain: "nuansahub-pondokkelapa.firebaseapp.com",
@@ -85,10 +95,10 @@
       appId: "1:123456789:web:abcdef123"
     };
 
-    // Deteksi variabel global dari server runtime
+    // Deteksi variabel global dari server runtime atau config.js
     const firebaseConfig = typeof __firebase_config !== 'undefined' 
       ? JSON.parse(__firebase_config) 
-      : defaultFirebaseConfig;
+      : (window.FirebaseConfig || defaultFirebaseConfig);
 
     const appId = typeof __app_id !== 'undefined' ? __app_id : 'nuansahub-app';
 
@@ -146,7 +156,7 @@
           ]
         }
       ],
-      
+      qrisImage: "https://api.qrserver.com/v1/create-qr-code/?size=250x250&data=00020101021226590016ID102004404154601189328400001020044045204541153033605802ID5911Seblak%20iZZi6009JAKARTA%20T61051344062070703A016304CAE3",
       isLoggedIn: false,
       isGuestMode: true,
       currentUserId: null,
@@ -161,7 +171,12 @@
       forgotAnswer: "",
       forgotNewPass: "",
       editAvatar: "",
-      isCustomAvatarUrl: false
+      isCustomAvatarUrl: false,
+      editName: "",
+      editPhone: "",
+      editPassword: "",
+      editQuestion: "",
+      editAnswer: ""
     };
 
     // Fungsi Pembantu Pencari Informasi Pembuat (Global Scope)
@@ -170,7 +185,7 @@
         name: "Warga Nuansa", 
         unit: "Unit ?", 
         verified: false, 
-        avatar: "https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=150&auto=format&fit=crop&q=80" 
+        avatar: "https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=150" 
       };
     };
 
@@ -214,6 +229,7 @@
       const publicDataJobsRef = collection(db, 'artifacts', appIdPath, 'public', 'data', 'jobs');
       const publicDataTalentsRef = collection(db, 'artifacts', appIdPath, 'public', 'data', 'talents');
       const publicDataUsersRef = collection(db, 'artifacts', appIdPath, 'public', 'data', 'users');
+      const publicDataConfigRef = doc(db, 'artifacts', appIdPath, 'public', 'data', 'config', 'qris');
 
       // Sinkronisasi Pengguna
       onSnapshot(publicDataUsersRef, (snapshot) => {
@@ -250,6 +266,17 @@
           renderApp();
         }
       }, (error) => console.log("Firestore Talents backup."));
+
+      // Sinkronisasi QRIS khusus
+      onSnapshot(publicDataConfigRef, (snapshot) => {
+        if (snapshot.exists()) {
+          const configData = snapshot.data();
+          if (configData && configData.image) {
+            AppState.qrisImage = configData.image;
+            renderApp();
+          }
+        }
+      }, (error) => console.log("Firestore QRIS config offline."));
     };
 
     // Jalankan Sistem Utama
@@ -274,6 +301,19 @@
         }
       }
       AppState.activeTab = tabName;
+
+      // Populate form data profile ketika berpindah ke profile
+      if (tabName === 'profile') {
+        const currentUserData = AppState.users.find(u => u.id === AppState.currentUserId);
+        if (currentUserData) {
+          AppState.editName = currentUserData.name;
+          AppState.editPhone = currentUserData.phone;
+          AppState.editPassword = currentUserData.password;
+          AppState.editQuestion = currentUserData.securityQuestion || SECURITY_QUESTIONS[0];
+          AppState.editAnswer = currentUserData.securityAnswer || "";
+          AppState.editAvatar = currentUserData.avatar;
+        }
+      }
       renderApp();
     };
 
@@ -416,6 +456,37 @@
         reader.onloadend = () => {
           AppState.editAvatar = reader.result;
           showToast("📸 Foto profil berhasil dimuat!");
+          renderApp();
+        };
+        reader.readAsDataURL(file);
+      }
+    };
+
+    // Penanganan Unggah QRIS dari Admin
+    window.handleQRISUpload = function(event) {
+      const file = event.target.files[0];
+      if (file) {
+        if (file.size > 3 * 1024 * 1024) {
+          showToast("⚠️ Maksimal ukuran file QRIS adalah 3MB!");
+          return;
+        }
+        const reader = new FileReader();
+        reader.onloadend = () => {
+          AppState.qrisImage = reader.result;
+          // Simpan ke Firestore
+          if (db) {
+            setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'config', 'qris'), {
+              image: reader.result,
+              updatedAt: new Date().toISOString()
+            }).then(() => {
+              showToast("📱 QRIS Donasi berhasil diunggah ke cloud!");
+            }).catch(e => {
+              console.log("Offline save QRIS.");
+              showToast("📱 QRIS tersimpan lokal (Offline).");
+            });
+          } else {
+            showToast("📱 QRIS tersimpan lokal.");
+          }
           renderApp();
         };
         reader.readAsDataURL(file);
@@ -591,6 +662,30 @@
       if (modal) modal.style.display = "none";
     };
 
+    // Penampil Foto Utuh (Agar foto profil/QRIS dapat dilihat utuh tanpa terpotong)
+    window.openFullPhotoModal = function(imageUrl, name) {
+      const modal = document.getElementById("full-photo-modal");
+      if (modal) {
+        document.getElementById("full-photo-img").src = imageUrl;
+        document.getElementById("full-photo-title").innerText = name || "Foto Lengkap";
+        modal.style.display = "flex";
+      }
+    };
+
+    window.closeFullPhotoModal = function() {
+      const modal = document.getElementById("full-photo-modal");
+      if (modal) modal.style.display = "none";
+    };
+
+    // Proteksi Akses Tamu
+    window.checkAccess = function(actionName) {
+      if (!AppState.isLoggedIn || AppState.isGuestMode) {
+        openGuestWarningModal(actionName);
+        return false;
+      }
+      return true;
+    };
+
     // Posting Lowongan & Jasa
     window.handleCreateJobSubmit = function(e) {
       e.preventDefault();
@@ -716,7 +811,7 @@
 
                       <div class="bg-slate-50 rounded-2xl p-3 border border-slate-100 flex items-center justify-between mb-5">
                         <div class="flex items-center space-x-3">
-                          <img src="${poster.avatar}" class="w-8 h-8 rounded-full object-cover border border-emerald-500 shadow-sm" alt="avatar" />
+                          <img src="${poster.avatar}" onclick="openFullPhotoModal('${poster.avatar}', '${poster.name}')" class="w-10 h-10 rounded-full object-cover aspect-square border-2 border-emerald-500 shadow-sm cursor-zoom-in" alt="avatar" />
                           <div>
                             <p class="text-xs font-bold text-slate-800 leading-none">${poster.name}</p>
                             <p class="text-[10px] text-slate-400 mt-1">Unit: ${poster.unit}</p>
@@ -770,7 +865,7 @@
                   <div class="bg-white rounded-3xl border border-slate-200 p-6 flex flex-col justify-between hover:shadow-lg transition-all duration-200">
                     <div>
                       <div class="flex items-center space-x-3 mb-4">
-                        <img src="${provider.avatar}" class="w-10 h-10 rounded-full object-cover border border-teal-400 shadow-sm" alt="avatar" />
+                        <img src="${provider.avatar}" onclick="openFullPhotoModal('${provider.avatar}', '${provider.name}')" class="w-12 h-12 rounded-full object-cover aspect-square border-2 border-teal-400 shadow-sm cursor-zoom-in" alt="avatar" />
                         <div>
                           <h4 class="font-bold text-slate-900 text-xs sm:text-sm leading-tight">${provider.name}</h4>
                           <p class="text-[10px] text-slate-400">Unit: ${provider.unit}</p>
@@ -819,7 +914,7 @@
 
                   return `
                     <button onclick="window.AppState.activeChatId = '${c.id}'; renderApp();" class="w-full p-4 text-left transition flex items-start space-x-3 text-xs ${isSelected ? 'bg-emerald-50 border-l-4 border-emerald-600' : 'hover:bg-slate-100'}">
-                      <img src="${other.avatar}" class="w-8 h-8 rounded-full object-cover border" alt="avatar" />
+                      <img src="${other.avatar}" onclick="event.stopPropagation(); openFullPhotoModal('${other.avatar}', '${other.name}')" class="w-8 h-8 rounded-full object-cover aspect-square border cursor-zoom-in" alt="avatar" />
                       <div class="min-w-0 flex-grow">
                         <div class="flex justify-between items-center">
                           <span class="font-bold truncate text-slate-800">${other.name}</span>
@@ -839,9 +934,9 @@
               ${activeChat ? `
                 <div class="p-4 border-b border-slate-200 bg-slate-50 flex justify-between items-center text-xs">
                   <div class="flex items-center space-x-2">
-                    <img src="${otherParty.avatar}" class="w-8 h-8 rounded-full object-cover" alt="avatar" />
+                    <img src="${otherParty.avatar}" onclick="openFullPhotoModal('${otherParty.avatar}', '${otherParty.name}')" class="w-8 h-8 rounded-full object-cover aspect-square cursor-zoom-in" alt="avatar" />
                     <div>
-                      <h4 class="font-bold text-slate-855">{otherParty.name} (${otherParty.unit})</h4>
+                      <h4 class="font-bold text-slate-800">${otherParty.name} (${otherParty.unit})</h4>
                       ${chatJob ? `<p class="text-[9px] text-slate-400">${chatJob.title}</p>` : ""}
                     </div>
                   </div>
@@ -907,12 +1002,12 @@
           <div class="max-w-4xl mx-auto grid grid-cols-1 md:grid-cols-12 gap-8">
             <div class="md:col-span-4 bg-white border border-slate-200 rounded-3xl p-6 text-center space-y-5 h-fit shadow-sm animate-fade-in">
               <div class="relative inline-block">
-                <img src="${AppState.editAvatar || currentUserData.avatar}" class="w-24 h-24 rounded-full object-cover border-4 border-emerald-500 shadow-md mx-auto" alt="avatar" />
+                <img src="${AppState.editAvatar || currentUserData.avatar}" onclick="openFullPhotoModal('${AppState.editAvatar || currentUserData.avatar}', '${currentUserData.name}')" class="w-24 h-24 rounded-full object-cover aspect-square border-4 border-emerald-500 shadow-md mx-auto cursor-zoom-in" alt="avatar" />
                 ${currentUserData.verified ? `<span class="absolute bottom-0 right-1 bg-emerald-100 text-emerald-800 text-[9px] font-black px-2 py-0.5 rounded-full border border-emerald-300">🛡️ Terverifikasi</span>` : ""}
               </div>
               
               <div>
-                <h3 class="text-lg font-extrabold text-slate-900">{currentUserData.name}</h3>
+                <h3 class="text-lg font-extrabold text-slate-900">${currentUserData.name}</h3>
                 <p class="text-xs text-slate-500 mt-1">Unit: ${currentUserData.unit}</p>
                 <span class="inline-block mt-2 bg-emerald-50 text-emerald-800 font-bold text-xs px-3 py-1 rounded-full">
                   🏆 ${currentUserData.points} Poin Gotong Royong
@@ -935,13 +1030,13 @@
                 <label class="block text-xs font-bold text-slate-600 uppercase tracking-wider">Foto Profil Warga</label>
                 <div class="flex flex-col sm:flex-row sm:items-center gap-4 bg-slate-50 p-4 rounded-2xl border border-slate-200">
                   <div class="flex-shrink-0">
-                    <img src="${AppState.editAvatar || currentUserData.avatar}" class="w-16 h-16 rounded-full object-cover border-2 border-emerald-500" alt="avatar" />
+                    <img src="${AppState.editAvatar || currentUserData.avatar}" class="w-16 h-16 rounded-full object-cover aspect-square border-2 border-emerald-500" alt="avatar" />
                   </div>
                   <div class="space-y-1">
                     <p class="text-xs font-bold text-slate-700">Unggah Foto Baru</p>
                     <div class="pt-1">
                       <input type="file" id="profile-image-upload-input" accept="image/*" class="hidden" onchange="handleProfileImageUpload(event)" />
-                      <label htmlFor="profile-image-upload-input" class="inline-block bg-emerald-700 hover:bg-emerald-600 text-white font-extrabold text-xs px-4 py-2 rounded-xl cursor-pointer transition shadow-sm">
+                      <label for="profile-image-upload-input" class="inline-block bg-emerald-700 hover:bg-emerald-600 text-white font-extrabold text-xs px-4 py-2 rounded-xl cursor-pointer transition shadow-sm">
                         📷 Pilih Berkas Foto
                       </label>
                     </div>
@@ -998,6 +1093,27 @@
               </div>
             </div>
 
+            <!-- Upload File QRIS Baru oleh Admin -->
+            <div class="bg-white rounded-3xl border p-6 shadow-sm">
+              <h3 class="font-extrabold text-slate-950 mb-3 text-sm">📤 Unggah / Ganti Gambar QRIS Donasi</h3>
+              <p class="text-xs text-slate-400 mb-4 font-light">Atur QRIS Donasi Server yang akan ditampilkan kepada warga. Foto terunggah akan ditampilkan utuh.</p>
+              <div class="flex flex-col md:flex-row items-center gap-6 bg-slate-50 p-4 rounded-2xl border border-slate-200">
+                <div class="w-32 h-32 md:w-40 md:h-40 bg-white border rounded-2xl p-2 shadow-inner flex items-center justify-center overflow-hidden">
+                  <img src="${AppState.qrisImage}" onclick="openFullPhotoModal('${AppState.qrisImage}', 'QRIS Keuangan')" class="max-w-full max-h-full object-contain cursor-zoom-in" alt="QRIS Preview" />
+                </div>
+                <div class="space-y-3 text-center md:text-left flex-grow">
+                  <p class="text-xs font-bold text-slate-700">Pilih Berkas QRIS (JPG/PNG)</p>
+                  <p class="text-[11px] text-slate-400">File akan otomatis dikompresi & disimpan di cloud Firestore.</p>
+                  <div>
+                    <input type="file" id="admin-qris-file" accept="image/*" class="hidden" onchange="handleQRISUpload(event)" />
+                    <label for="admin-qris-file" class="inline-block bg-emerald-700 hover:bg-emerald-600 text-white font-extrabold text-xs px-5 py-2.5 rounded-xl cursor-pointer transition shadow-md">
+                      📁 Unggah File QRIS Baru
+                    </label>
+                  </div>
+                </div>
+              </div>
+            </div>
+
             <!-- Keanggotaan -->
             <div class="bg-white rounded-3xl border p-6 shadow-sm">
               <h3 class="font-extrabold text-slate-950 mb-4 text-sm">📋 Keanggotaan & Reset Sandi Warga</h3>
@@ -1008,7 +1124,7 @@
                     <tr class="bg-slate-50 text-slate-500 uppercase text-[9px] border-b">
                       <th class="p-3">Foto</th>
                       <th class="p-3">Nama Warga</th>
-                      <th className="p-3">Unit</th>
+                      <th class="p-3">Unit</th>
                       <th class="p-3">No. WA</th>
                       <th class="p-3">Verifikasi</th>
                       <th class="p-3 text-center">Tindakan Keamanan</th>
@@ -1018,10 +1134,10 @@
                     ${AppState.users.map(u => `
                       <tr>
                         <td class="p-3">
-                          <img src="${u.avatar}" class="w-8 h-8 rounded-full object-cover border" alt="avatar" />
+                          <img src="${u.avatar}" onclick="openFullPhotoModal('${u.avatar}', '${u.name}')" class="w-8 h-8 rounded-full object-cover aspect-square border cursor-zoom-in" alt="avatar" />
                         </td>
                         <td class="p-3">
-                          <p class="font-bold text-slate-800">{u.name}</p>
+                          <p class="font-bold text-slate-800">${u.name}</p>
                           <p class="text-[9px] text-slate-400 font-mono">ID: ${u.id}</p>
                         </td>
                         <td class="p-3 text-slate-600 font-light">${u.unit}</td>
@@ -1063,7 +1179,7 @@
       }
 
       appDiv.innerHTML = `
-        <!-- HEADER SEMENTARA -->
+        <!-- HEADER -->
         <header class="bg-emerald-950 text-white sticky top-0 z-40 shadow-lg border-b border-emerald-900">
           <div class="max-w-6xl mx-auto px-4 py-3.5 flex flex-row items-center justify-between gap-4">
             <div class="flex items-center space-x-3 cursor-pointer" onclick="changeTab('jobs')">
@@ -1078,14 +1194,14 @@
             <div class="flex items-center space-x-2">
               ${AppState.isLoggedIn && currentUserData ? `
                 <button onclick="changeTab('profile')" class="bg-emerald-900/85 px-3 py-1.5 rounded-xl text-xs font-bold border border-emerald-800 transition flex items-center space-x-2">
-                  <img src="${currentUserData.avatar}" class="w-5 h-5 rounded-full object-cover" alt="avatar" />
+                  <img src="${currentUserData.avatar}" class="w-5 h-5 rounded-full object-cover aspect-square" alt="avatar" />
                   <span class="hidden sm:inline font-bold">${currentUserData.name}</span>
                 </button>
                 ${currentUserData.role === 'admin' ? `
                   <button onclick="changeTab('admin')" class="bg-amber-500 text-slate-950 px-3 py-1.5 rounded-xl text-xs font-extrabold shadow">🛡️ Admin</button>
                 ` : ""}
               ` : `
-                <button onclick="openAuthModal('login')" class="bg-gradient-to-r from-amber-400 to-amber-500 text-emerald-950 font-black px-4 py-2 rounded-xl text-xs shadow-md">🔑 Masuk</button>
+                <button onclick="openAuthModal('login')" class="bg-gradient-to-r from-amber-400 to-amber-500 text-emerald-950 font-black px-4 py-2 rounded-xl text-xs shadow-md">🔑 Masuk / Daftar</button>
               `}
             </div>
           </div>
@@ -1189,13 +1305,31 @@
       `;
     }
 
-    // Dynamic rendering helper untuk Autentikasi
-    function renderAuthModalContent() {
+    // Dynamic rendering helper untuk Autentikasi (Ditingkatkan dengan Tab Switcher & Akses Cepat Daftar)
+    // Diikat ke window agar dapat dipanggil dari inline HTML event handlers (seperti onclick)
+    window.renderAuthModalContent = function() {
       const authContent = document.getElementById("auth-modal-body");
       if (!authContent) return;
 
-      if (AppState.authTab === 'login') {
+      const isLogin = AppState.authTab === 'login';
+      const isRegister = AppState.authTab === 'register';
+      const isForgot = AppState.authTab === 'forgot';
+
+      // HTML Tab Switcher
+      let tabsHtml = `
+        <div class="flex border-b border-slate-200 mb-5 text-xs font-bold">
+          <button type="button" onclick="AppState.authTab = 'login'; renderAuthModalContent();" class="w-1/2 pb-3 text-center border-b-2 transition-all ${isLogin ? 'border-emerald-700 text-emerald-800' : 'border-transparent text-slate-400 hover:text-slate-600'}">
+            🔑 MASUK (LOGIN)
+          </button>
+          <button type="button" onclick="AppState.authTab = 'register'; renderAuthModalContent();" class="w-1/2 pb-3 text-center border-b-2 transition-all ${isRegister ? 'border-emerald-700 text-emerald-800' : 'border-transparent text-slate-400 hover:text-slate-600'}">
+            📝 DAFTAR AKUN
+          </button>
+        </div>
+      `;
+
+      if (isLogin) {
         authContent.innerHTML = `
+          ${tabsHtml}
           <form onsubmit="handleLoginSubmit(event)" class="space-y-4">
             <div>
               <label class="block text-[10px] font-bold text-slate-500 uppercase mb-1">Nomor WhatsApp *</label>
@@ -1209,11 +1343,17 @@
               <input type="password" id="login-password" placeholder="Masukkan sandi..." class="w-full px-4 py-2.5 border rounded-xl text-xs bg-slate-50 focus:outline-none" required />
             </div>
             <button type="submit" class="w-full bg-emerald-700 hover:bg-emerald-600 text-white font-extrabold py-3 rounded-xl text-xs transition shadow-md">Masuk Sekarang 🚀</button>
+            
+            <p class="text-center text-[11px] text-slate-500 pt-2">
+              Belum punya akun? 
+              <button type="button" onclick="AppState.authTab = 'register'; renderAuthModalContent();" class="text-emerald-700 font-bold hover:underline">Daftar Akun Baru</button>
+            </p>
           </form>
         `;
-      } else if (AppState.authTab === 'register') {
+      } else if (isRegister) {
         authContent.innerHTML = `
-          <form onsubmit="handleRegisterSubmit(event)" class="space-y-3 max-h-[380px] overflow-y-auto pr-1">
+          ${tabsHtml}
+          <form onsubmit="handleRegisterSubmit(event)" class="space-y-3 max-h-[350px] overflow-y-auto pr-1">
             <div>
               <label class="block text-[10px] font-bold text-slate-500 uppercase mb-1">Nama Lengkap *</label>
               <input type="text" id="reg-name" placeholder="Nama asli sesuai KTP" class="w-full px-3.5 py-2 border rounded-xl text-xs bg-slate-50 focus:outline-none" required />
@@ -1256,7 +1396,7 @@
             <button type="submit" class="w-full bg-emerald-750 hover:bg-emerald-700 text-white font-extrabold py-3 rounded-xl text-xs transition">Daftar Akun Baru ✨</button>
           </form>
         `;
-      } else if (AppState.authTab === 'forgot') {
+      } else if (isForgot) {
         let innerForgotHTML = "";
         if (AppState.forgotStep === 1) {
           innerForgotHTML = `
@@ -1291,13 +1431,13 @@
           <div class="space-y-4">
             <div class="flex justify-between items-center pb-2 border-b">
               <h4 class="font-extrabold text-xs text-rose-800 uppercase">Pemulihan Akun</h4>
-              <button type="button" onclick="AppState.authTab = 'login'; renderAuthModalContent();" class="text-xs text-emerald-700 font-bold hover:underline">Login</button>
+              <button type="button" onclick="AppState.authTab = 'login'; renderAuthModalContent();" class="text-xs text-emerald-700 font-bold hover:underline">Kembali Login</button>
             </div>
             ${innerForgotHTML}
           </div>
         `;
       }
-    }
+    };
 
     // Event Global untuk Pemulihan Lupa Sandi
     window.handleForgotSearchAction = function(e) {
@@ -1382,22 +1522,23 @@
     </div>
   </div>
 
-  <!-- ================= MODAL 3: DONASI QRIS (Seblak iZZi) ================= -->
+  <!-- ================= MODAL 3: DONASI QRIS ================= -->
   <div id="qris-donation-modal" class="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 hidden items-center justify-center p-4">
     <div class="bg-white rounded-3xl shadow-2xl w-full max-w-sm text-center p-6 space-y-4 border border-slate-200">
       <div class="flex justify-between items-center pb-2 border-b">
         <div class="text-left">
           <h4 class="font-extrabold text-xs tracking-wider text-emerald-800 uppercase">QRIS Dukungan Server</h4>
-          <p class="text-[10px] text-slate-400">Atas nama: Seblak iZZi</p>
+          <p class="text-[10px] text-slate-400">Atas nama: Seblak iZZi / NuansaHub</p>
         </div>
         <button onclick="closeQRISModal()" class="text-slate-400 font-bold hover:text-slate-700">✕</button>
       </div>
       <div class="bg-slate-50 border rounded-2xl p-4 flex flex-col items-center">
-        <p class="text-base font-black text-slate-800">Seblak iZZi</p>
-        <p class="text-[10px] text-slate-500">NMID : ID1020044041546</p>
-        <div class="bg-white p-2.5 rounded-xl border my-3 shadow-inner">
-          <img src="https://api.qrserver.com/v1/create-qr-code/?size=250x250&data=00020101021226590016ID102004404154601189328400001020044045204541153033605802ID5911Seblak%20iZZi6009JAKARTA%20T61051344062070703A016304CAE3" alt="QRIS Seblak iZZi" class="w-44 h-44">
+        <p class="text-base font-black text-slate-800">Dukungan NuansaHub</p>
+        <div class="bg-white p-2.5 rounded-xl border my-3 shadow-inner max-w-[210px]">
+          <!-- Menggunakan src gambar dinamis dari AppState agar dapat diganti oleh admin secara langsung -->
+          <img src="https://api.qrserver.com/v1/create-qr-code/?size=250x250&data=00020101021226590016ID102004404154601189328400001020044045204541153033605802ID5911Seblak%20iZZi6009JAKARTA%20T61051344062070703A016304CAE3" id="qris-image-view" class="w-full h-auto object-contain cursor-zoom-in" onclick="openFullPhotoModal(document.getElementById('qris-image-view').src, 'QRIS Server')" alt="QRIS Seblak iZZi" />
         </div>
+        <p class="text-[10px] text-slate-400">Klik gambar QRIS untuk memperbesar secara penuh.</p>
       </div>
       <button onclick="closeQRISModal()" class="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold py-3 rounded-xl text-xs transition shadow">Saya Sudah Selesai Scan 🚀</button>
     </div>
@@ -1455,6 +1596,17 @@
         </div>
         <button type="submit" class="w-full bg-emerald-700 hover:bg-emerald-600 text-white font-bold py-2.5 rounded-lg transition shadow-md">Daftarkan Jasa 📢</button>
       </form>
+    </div>
+  </div>
+
+  <!-- ================= MODAL 6: LIHAT FOTO UTUH ================= -->
+  <div id="full-photo-modal" class="fixed inset-0 bg-black/90 backdrop-blur-sm z-[60] hidden items-center justify-center p-4">
+    <div class="relative max-w-lg w-full flex flex-col items-center">
+      <button onclick="closeFullPhotoModal()" class="absolute -top-10 right-0 text-white text-3xl font-light hover:text-slate-300">✕</button>
+      <h4 id="full-photo-title" class="text-white text-xs font-bold tracking-wide mb-3 bg-emerald-950/80 px-4 py-1.5 rounded-full">Foto Lengkap</h4>
+      <div class="bg-white p-2 rounded-2xl max-h-[80vh] overflow-hidden flex items-center justify-center shadow-2xl">
+        <img id="full-photo-img" src="" class="max-w-full max-h-[70vh] object-contain rounded-xl" alt="Foto Lengkap" />
+      </div>
     </div>
   </div>
 
