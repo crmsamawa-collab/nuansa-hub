@@ -1,0 +1,11 @@
+// Pindahkan file ini ke server rahasia atau sesuaikan kuncinya saat deploy
+// File ini menyimpan kredensial konfigurasi Firebase secara terpisah agar aman
+
+window.FirebaseConfig = {
+  apiKey: "AIzaSyD-YourSecretApiKeyHere-123456", 
+  authDomain: "nuansahub-pondokkelapa.firebaseapp.com",
+  projectId: "nuansahub-pondokkelapa",
+  storageBucket: "nuansahub-pondokkelapa.appspot.com",
+  messagingSenderId: "123456789012",
+  appId: "1:123456789012:web:abcdef123456789"
+};
