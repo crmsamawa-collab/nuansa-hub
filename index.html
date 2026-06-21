@@ -1,0 +1,1853 @@
+import React, { useState, useMemo, useEffect } from 'react';
+
+// --- DATABASE SIMULASI (IN-MEMORY STATE) ---
+const INITIAL_USERS = [
+  { 
+    id: "u-admin", 
+    name: "edhos", 
+    tower: "Menara Samawa",
+    unit: "0102", 
+    phone: "082220691212", 
+    password: "admin", 
+    role: "admin", 
+    verified: true, 
+    points: 999, 
+    avatar: "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80",
+    securityQuestion: "Apa nama sekolah dasar (SD) Anda?",
+    securityAnswer: "sd pondok kelapa"
+  },
+  { 
+    id: "u-1", 
+    name: "Budi Santoso", 
+    tower: "Menara Swasana",
+    unit: "1405", 
+    phone: "08123456000", 
+    password: "warga", 
+    role: "warga", 
+    verified: true, 
+    points: 120, 
+    avatar: "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=150&auto=format&fit=crop&q=80",
+    securityQuestion: "Apa nama hewan peliharaan pertama Anda?",
+    securityAnswer: "kucing"
+  },
+  { 
+    id: "u-2", 
+    name: "Ibu Desi", 
+    tower: "Menara Samawa",
+    unit: "0309", 
+    phone: "08111222333", 
+    password: "warga", 
+    role: "warga", 
+    verified: true, 
+    points: 45, 
+    avatar: "https://images.unsplash.com/photo-1544005313-94ddf0286df2?w=150&auto=format&fit=crop&q=80",
+    securityQuestion: "Di kota mana orang tua Anda pertama kali bertemu?",
+    securityAnswer: "jakarta"
+  },
+  { 
+    id: "u-3", 
+    name: "Rian Hidayat", 
+    tower: "Menara Samawa",
+    unit: "1205", 
+    phone: "08123456789", 
+    password: "warga", 
+    role: "warga", 
+    verified: true, 
+    points: 80, 
+    avatar: "https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=150&auto=format&fit=crop&q=80",
+    securityQuestion: "Apa warna mobil/motor pertama Anda?",
+    securityAnswer: "hitam"
+  }
+];
+
+const INITIAL_JOBS = [
+  {
+    id: 1,
+    title: "Bantu Pindahan Sofa & Meja ke Lantai 15",
+    category: "Serabutan",
+    budget: 150000,
+    posterId: "u-3", 
+    description: "Minta tolong 2 orang berbadan sehat untuk angkat sofa lipat dan meja makan dari lobi Menara Samawa ke unit kami di lantai 12. Estimasi pengerjaan cepat sekitar 1 jam saja.",
+    createdAt: "2 jam lalu",
+    status: "Aktif", 
+    workerId: null
+  },
+  {
+    id: 2,
+    title: "Jasa Pembersihan Unit Apartemen Kosong",
+    category: "Profesional",
+    budget: 200000,
+    posterId: "u-2", 
+    description: "Perlu jasa deep cleaning untuk unit di Menara Samawa sebelum disewakan bulan depan. Alat-alat pembersih standar sudah disediakan di dalam unit.",
+    createdAt: "5 jam lalu",
+    status: "Aktif",
+    workerId: null
+  }
+];
+
+const INITIAL_TALENTS = [
+  {
+    id: 1,
+    userId: "u-1", 
+    skill: "Servis AC, TV & Komputer",
+    description: "Melayani jasa perawatan/cuci AC, perbaikan TV mati total, instalasi ulang laptop, dan perbaikan jaringan WiFi lambat khusus untuk warga Nuansa Pondok Kelapa.",
+    rating: 4.9,
+    reviews: 24
+  }
+];
+
+const INITIAL_CHATS = [
+  {
+    id: "chat-1",
+    jobId: 1,
+    parties: ["u-1", "u-3"], 
+    messages: [
+      { senderId: "u-1", text: "Halo Rian, saya Budi dari Swasana. Saya luang siang ini untuk bantu pindahan sofa.", time: "10:30" },
+      { senderId: "u-3", text: "Halo Budi! Kebetulan sekali, bisa bantu langsung setelah jam makan siang nanti?", time: "10:32" },
+      { senderId: "u-1", text: "Bisa, jam 1 siang saya meluncur ke lobi Menara Samawa ya.", time: "10:35" }
+    ]
+  }
+];
+
+const PRESET_AVATARS = [
+  "https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=150",
+  "https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=150",
+  "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=150",
+  "https://images.unsplash.com/photo-1544005313-94ddf0286df2?w=150",
+  "https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=150",
+  "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150"
+];
+
+const SECURITY_QUESTIONS = [
+  "Apa nama sekolah dasar (SD) Anda?",
+  "Apa nama hewan peliharaan pertama Anda?",
+  "Di kota mana orang tua Anda pertama kali bertemu?",
+  "Apa warna mobil/motor pertama Anda?"
+];
+
+export default function App() {
+  // --- STATE UTAMA ---
+  const [users, setUsers] = useState(INITIAL_USERS);
+  const [jobs, setJobs] = useState(INITIAL_JOBS);
+  const [talents, setTalents] = useState(INITIAL_TALENTS);
+  const [chats, setChats] = useState(INITIAL_CHATS);
+  
+  // --- STATE OTENTIKASI (GUEST MODE DEFAULT) ---
+  const [isLoggedIn, setIsLoggedIn] = useState(false);
+  const [isGuestMode, setIsGuestMode] = useState(true);
+  const [currentUserId, setCurrentUserId] = useState(null);
+  
+  // Modal Otentikasi
+  const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
+  const [authTab, setAuthTab] = useState('login'); 
+  
+  // State Pemulihan Sandi
+  const [forgotPhone, setForgotPhone] = useState('');
+  const [forgotStep, setForgotStep] = useState(1);
+  const [forgotUserFound, setForgotUserFound] = useState(null);
+  const [forgotAnswer, setForgotAnswer] = useState('');
+  const [forgotNewPass, setForgotNewPass] = useState('');
+
+  // Input Form Login
+  const [inputPhone, setInputPhone] = useState('');
+  const [inputPassword, setInputPassword] = useState('');
+
+  // Input Form Registrasi
+  const [regName, setRegName] = useState('');
+  const [regTower, setRegTower] = useState('Menara Samawa');
+  const [regUnit, setRegUnit] = useState('');
+  const [regPhone, setRegPhone] = useState('');
+  const [regPassword, setRegPassword] = useState('');
+  const [regQuestion, setRegQuestion] = useState(SECURITY_QUESTIONS[0]);
+  const [regAnswer, setRegAnswer] = useState('');
+
+  // State Edit Profil (Menggunakan state bersih untuk mencegah infinite render loops)
+  const [editName, setEditName] = useState('');
+  const [editPhone, setEditPhone] = useState('');
+  const [editPassword, setEditPassword] = useState('');
+  const [editAvatar, setEditAvatar] = useState('');
+  const [editQuestion, setEditQuestion] = useState('');
+  const [editAnswer, setEditAnswer] = useState('');
+  const [isCustomAvatarUrl, setIsCustomAvatarUrl] = useState(false);
+
+  // Tab Aktif (jobs | talents | chats | profile | admin | about)
+  const [activeTab, setActiveTab] = useState('jobs'); 
+  
+  // Detail Chat Aktif
+  const [activeChatId, setActiveChatId] = useState(null);
+  const [chatInputText, setChatInputText] = useState("");
+
+  // Modals & Popups
+  const [isQRISModalOpen, setIsQRISModalOpen] = useState(false);
+  const [isJobModalOpen, setIsJobModalOpen] = useState(false);
+  const [isTalentModalOpen, setIsTalentModalOpen] = useState(false);
+  const [isGuestWarningModalOpen, setIsGuestWarningModalOpen] = useState(false);
+  const [guestWarningMessage, setGuestWarningMessage] = useState("");
+  const [toast, setToast] = useState(null);
+
+  // Form Lowongan Baru
+  const [newJobTitle, setNewJobTitle] = useState('');
+  const [newJobCategory, setNewJobCategory] = useState('Serabutan');
+  const [newJobBudget, setNewJobBudget] = useState('');
+  const [newJobDesc, setNewJobDesc] = useState('');
+
+  // Form Jasa Baru
+  const [newTalentSkill, setNewTalentSkill] = useState('');
+  const [newTalentDesc, setNewTalentDesc] = useState('');
+
+  // Search & Filter
+  const [searchQuery, setSearchQuery] = useState('');
+  const [selectedCategory, setSelectedCategory] = useState('Semua');
+
+  // --- MEMOIZED DATA ---
+  const currentUser = useMemo(() => {
+    return users.find(u => u.id === currentUserId) || null;
+  }, [users, currentUserId]);
+
+  // --- SAFE SIDE-EFFECT FOR PROFILE FORM INITIALIZATION ---
+  useEffect(() => {
+    if (currentUser) {
+      setEditName(currentUser.name);
+      setEditPhone(currentUser.phone);
+      setEditPassword(currentUser.password);
+      setEditAvatar(currentUser.avatar);
+      setEditQuestion(currentUser.securityQuestion || SECURITY_QUESTIONS[0]);
+      setEditAnswer(currentUser.securityAnswer || '');
+    } else {
+      setEditName('');
+      setEditPhone('');
+      setEditPassword('');
+      setEditAvatar('');
+      setEditQuestion(SECURITY_QUESTIONS[0]);
+      setEditAnswer('');
+    }
+  }, [currentUserId, currentUser]);
+
+  const showToast = (msg) => {
+    setToast(msg);
+    setTimeout(() => setToast(null), 3500);
+  };
+
+  // --- VALIDASI AKSES KEAMANAN ---
+  const checkAccess = (actionLabel) => {
+    if (isGuestMode || !isLoggedIn) {
+      setGuestWarningMessage(actionLabel);
+      setIsGuestWarningModalOpen(true);
+      return false;
+    }
+    return true;
+  };
+
+  // --- HANDLER OTENTIKASI ---
+  const handleLogin = (e) => {
+    e.preventDefault();
+    const user = users.find(u => u.phone === inputPhone && u.password === inputPassword);
+    
+    if (user) {
+      setCurrentUserId(user.id);
+      setIsLoggedIn(true);
+      setIsGuestMode(false);
+      setIsAuthModalOpen(false);
+      showToast(`🔑 Selamat datang kembali, ${user.name}!`);
+      setInputPhone('');
+      setInputPassword('');
+    } else {
+      showToast("❌ Nomor WhatsApp atau Password salah!");
+    }
+  };
+
+  const handleRegister = (e) => {
+    e.preventDefault();
+    // Validasi Nomor Unit harus 4 digit angka
+    const unitRegex = /^\d{4}$/;
+    if (!unitRegex.test(regUnit)) {
+      showToast("⚠️ Nomor unit harus berupa 4 digit angka (contoh: 0812, 1405)!");
+      return;
+    }
+
+    if (!regName || !regUnit || !regPhone || !regPassword || !regAnswer) {
+      showToast("⚠️ Mohon lengkapi semua kolom pendaftaran!");
+      return;
+    }
+
+    if (users.some(u => u.phone === regPhone)) {
+      showToast("⚠️ Nomor WA ini sudah terdaftar. Silakan login.");
+      return;
+    }
+
+    const newUserId = `u-${Date.now()}`;
+    const newUser = {
+      id: newUserId,
+      name: regName,
+      unit: `${regTower} - ${regUnit}`,
+      phone: regPhone,
+      password: regPassword,
+      role: 'warga',
+      verified: false,
+      points: 10,
+      avatar: PRESET_AVATARS[Math.floor(Math.random() * PRESET_AVATARS.length)],
+      securityQuestion: regQuestion,
+      securityAnswer: regAnswer.toLowerCase().trim()
+    };
+
+    setUsers([...users, newUser]);
+    setCurrentUserId(newUserId);
+    setIsLoggedIn(true);
+    setIsGuestMode(false);
+    setIsAuthModalOpen(false);
+    showToast(`🎉 Selamat Bergabung, ${regName}!`);
+    
+    setRegName('');
+    setRegUnit('');
+    setRegPhone('');
+    setRegPassword('');
+    setRegAnswer('');
+  };
+
+  // --- PROSES LUPA SANDI ---
+  const handleForgotSearch = (e) => {
+    e.preventDefault();
+    const user = users.find(u => u.phone === forgotPhone);
+    if (user) {
+      setForgotUserFound(user);
+      setForgotStep(2);
+    } else {
+      showToast("❌ Nomor WhatsApp tidak terdaftar!");
+    }
+  };
+
+  const handleForgotVerifyAnswer = (e) => {
+    e.preventDefault();
+    if (forgotUserFound.securityAnswer === forgotAnswer.toLowerCase().trim()) {
+      setForgotStep(3);
+    } else {
+      showToast("❌ Jawaban keamanan salah! Silakan coba lagi.");
+    }
+  };
+
+  const handleForgotResetPass = (e) => {
+    e.preventDefault();
+    if (!forgotNewPass) return;
+
+    setUsers(users.map(u => {
+      if (u.id === forgotUserFound.id) {
+        return { ...u, password: forgotNewPass };
+      }
+      return u;
+    }));
+
+    showToast("🎉 Sukses mengubah kata sandi! Silakan masuk kembali.");
+    setForgotPhone('');
+    setForgotAnswer('');
+    setForgotNewPass('');
+    setForgotUserFound(null);
+    setForgotStep(1);
+    setAuthTab('login');
+  };
+
+  // --- HANDLER SIMPAN EDIT PROFIL ---
+  const handleSaveProfile = (e) => {
+    e.preventDefault();
+    if (!editName || !editPhone || !editPassword || !editAnswer) {
+      showToast("⚠️ Semua bidang bertanda bintang (*) wajib diisi!");
+      return;
+    }
+
+    setUsers(users.map(u => {
+      if (u.id === currentUserId) {
+        return { 
+          ...u, 
+          name: editName,
+          phone: editPhone,
+          password: editPassword,
+          avatar: editAvatar,
+          securityQuestion: editQuestion,
+          securityAnswer: editAnswer.toLowerCase().trim()
+        };
+      }
+      return u;
+    }));
+
+    showToast("🌟 Perubahan profil Anda berhasil disimpan!");
+  };
+
+  // --- HANDLER UPLOAD FOTO DARI DISK LOKAL ---
+  const handleLocalImageUpload = (e) => {
+    const file = e.target.files[0];
+    if (file) {
+      if (file.size > 2 * 1024 * 1024) {
+        showToast("⚠️ Ukuran berkas maksimal adalah 2MB!");
+        return;
+      }
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        setEditAvatar(reader.result); 
+        showToast("📸 Berhasil memuat foto profil baru!");
+      };
+      reader.readAsDataURL(file);
+    }
+  };
+
+  const handleLogout = () => {
+    setIsLoggedIn(false);
+    setIsGuestMode(true);
+    setCurrentUserId(null);
+    setActiveChatId(null);
+    setActiveTab('jobs');
+    showToast("👋 Anda kembali ke Mode Tamu.");
+  };
+
+  // Quick Login Utility
+  const handleQuickLogin = (userId) => {
+    const user = users.find(u => u.id === userId);
+    if (user) {
+      setCurrentUserId(user.id);
+      setIsLoggedIn(true);
+      setIsGuestMode(false);
+      setIsAuthModalOpen(false);
+      showToast(`🔑 Masuk sebagai: ${user.name}`);
+    }
+  };
+
+  // Memetakan detail user
+  const getPosterDetail = (posterId) => {
+    return users.find(u => u.id === posterId) || { name: "Warga Nuansa", unit: "Unit ?", verified: false, avatar: "https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=150&auto=format&fit=crop&q=80" };
+  };
+
+  // --- FILTERING ---
+  const filteredJobs = useMemo(() => {
+    return jobs.filter(job => {
+      const poster = getPosterDetail(job.posterId);
+      const matchesSearch = job.title.toLowerCase().includes(searchQuery.toLowerCase()) || 
+                            job.description.toLowerCase().includes(searchQuery.toLowerCase()) ||
+                            poster.name.toLowerCase().includes(searchQuery.toLowerCase());
+      const matchesCategory = selectedCategory === 'Semua' || job.category === selectedCategory;
+      return matchesSearch && matchesCategory;
+    });
+  }, [jobs, searchQuery, selectedCategory, users]);
+
+  const filteredTalents = useMemo(() => {
+    return talents.filter(talent => {
+      const userDetail = getPosterDetail(talent.userId);
+      return talent.skill.toLowerCase().includes(searchQuery.toLowerCase()) || 
+             userDetail.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+             talent.description.toLowerCase().includes(searchQuery.toLowerCase());
+    });
+  }, [talents, searchQuery, users]);
+
+  // --- IN-APP CHAT ---
+  const startChat = (job) => {
+    if (!checkAccess("Mengirim pesan / berdiskusi pekerjaan")) return;
+
+    if (job.posterId === currentUserId) {
+      showToast("⚠️ Anda tidak bisa chat dengan diri sendiri.");
+      return;
+    }
+
+    let existingChat = chats.find(c => c.jobId === job.id && c.parties.includes(currentUserId) && c.parties.includes(job.posterId));
+
+    if (!existingChat) {
+      const newChatId = `chat-${Date.now()}`;
+      const newChat = {
+        id: newChatId,
+        jobId: job.id,
+        parties: [currentUserId, job.posterId],
+        messages: [
+          { senderId: "system", text: `💬 Ruang obrolan dimulai untuk: "${job.title}". Diskusikan upah dan waktu secara kekeluargaan di sini.`, time: "Sistem" }
+        ]
+      };
+      setChats([newChat, ...chats]);
+      setActiveChatId(newChatId);
+    } else {
+      setActiveChatId(existingChat.id);
+    }
+    setActiveTab('chats');
+  };
+
+  const sendChatMessage = (e) => {
+    e.preventDefault();
+    if (!chatInputText.trim() || !activeChatId) return;
+
+    setChats(chats.map(chat => {
+      if (chat.id === activeChatId) {
+        return {
+          ...chat,
+          messages: [
+            ...chat.messages,
+            { senderId: currentUserId, text: chatInputText, time: new Date().toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' }) }
+          ]
+        };
+      }
+      return chat;
+    }));
+    setChatInputText("");
+  };
+
+  const handleDealJob = (chat) => {
+    const job = jobs.find(j => j.id === chat.jobId);
+    if (!job) return;
+
+    const workerId = chat.parties.find(p => p !== job.posterId);
+
+    setJobs(jobs.map(j => {
+      if (j.id === job.id) {
+        return { ...j, status: "Dikerjakan", workerId: workerId };
+      }
+      return j;
+    }));
+
+    setChats(chats.map(c => {
+      if (c.id === chat.id) {
+        return {
+          ...c,
+          messages: [
+            ...c.messages,
+            { senderId: "system", text: `🤝 Pekerjaan telah DISEPAKATI! Pekerja sedang memproses tugas.`, time: "Sistem" }
+          ]
+        };
+      }
+      return c;
+    }));
+
+    showToast("🤝 Pekerjaan disepakati!");
+  };
+
+  const handleCompleteJob = (chat) => {
+    const job = jobs.find(j => j.id === chat.jobId);
+    if (!job) return;
+
+    setJobs(jobs.map(j => {
+      if (j.id === job.id) {
+        return { ...j, status: "Selesai" };
+      }
+      return j;
+    }));
+
+    if (job.workerId) {
+      setUsers(users.map(u => {
+        if (u.id === job.workerId) {
+          return { ...u, points: u.points + 25 };
+        }
+        return u;
+      }));
+    }
+
+    setChats(chats.map(c => {
+      if (c.id === chat.id) {
+        return {
+          ...c,
+          messages: [
+            ...c.messages,
+            { senderId: "system", text: `🎉 Pekerjaan selesai! Pekerja mendapatkan +25 Poin.`, time: "Sistem" }
+          ]
+        };
+      }
+      return c;
+    }));
+
+    showToast("🎉 Tugas dinyatakan selesai!");
+  };
+
+  // --- PEMBUATAN DATA BARU ---
+  const handleCreateJob = (e) => {
+    e.preventDefault();
+    if (!newJobTitle || !newJobBudget || !newJobDesc) return;
+
+    const newJob = {
+      id: Date.now(),
+      title: newJobTitle,
+      category: newJobCategory,
+      budget: Number(newJobBudget),
+      posterId: currentUserId,
+      description: newJobDesc,
+      createdAt: "Baru saja",
+      status: "Aktif",
+      workerId: null
+    };
+
+    setJobs([newJob, ...jobs]);
+    setIsJobModalOpen(false);
+    setNewJobTitle('');
+    setNewJobBudget('');
+    setNewJobDesc('');
+    showToast("💼 Lowongan kerja berhasil ditayangkan.");
+  };
+
+  const handleCreateTalent = (e) => {
+    e.preventDefault();
+    if (!newTalentSkill || !newTalentDesc) return;
+
+    const newTalent = {
+      id: Date.now(),
+      userId: currentUserId,
+      skill: newTalentSkill,
+      description: newTalentDesc,
+      rating: 5.0,
+      reviews: 0
+    };
+
+    setTalents([newTalent, ...talents]);
+    setIsTalentModalOpen(false);
+    setNewTalentSkill('');
+    setNewTalentDesc('');
+    showToast("🛠️ Jasa Anda berhasil dipasang.");
+  };
+
+  // --- ADMIN ACTIONS (edhos) ---
+  const handleToggleVerifyUser = (userId) => {
+    setUsers(users.map(u => u.id === userId ? { ...u, verified: !u.verified } : u));
+    showToast("🛡️ Status verifikasi warga diubah.");
+  };
+
+  const handleAdminResetPassword = (userId) => {
+    setUsers(users.map(u => u.id === userId ? { ...u, password: "Nuansa123" } : u));
+    showToast(`🔑 Sandi warga telah direset ke default: "Nuansa123"`);
+  };
+
+  const handleDeleteJobByAdmin = (jobId) => {
+    setJobs(jobs.filter(j => j.id !== jobId));
+    showToast("🗑️ Postingan kerja dihapus oleh admin.");
+  };
+
+  // --- BULLETPROOF ROUTING SYSTEM (MENGHINDARI BLANK SCREEN) ---
+  const renderMainContent = () => {
+    // Keamanan Guard Fallback: Jika melanggar otorisasi tab, langsung lempar kembali ke 'jobs'
+    if ((activeTab === 'chats' || activeTab === 'profile') && (!isLoggedIn || isGuestMode)) {
+      return renderJobsTab();
+    }
+    if (activeTab === 'admin' && (!isLoggedIn || currentUser?.role !== 'admin')) {
+      return renderJobsTab();
+    }
+
+    switch (activeTab) {
+      case 'jobs':
+        return renderJobsTab();
+      case 'talents':
+        return renderTalentsTab();
+      case 'chats':
+        return renderChatsTab();
+      case 'profile':
+        return renderProfileTab();
+      case 'admin':
+        return renderAdminTab();
+      case 'about':
+        return renderAboutTab();
+      default:
+        return renderJobsTab();
+    }
+  };
+
+  // --- TAB RENDER FUNCTIONS ---
+  const renderJobsTab = () => (
+    <div className="space-y-6">
+      <div className="flex items-center justify-between">
+        <div>
+          <h3 className="text-xl font-extrabold text-slate-900 tracking-tight">Mading Lowongan & Kerja Serabutan</h3>
+          <p className="text-xs sm:text-sm text-slate-500 font-light">Bantu tugas harian warga di Menara Samawa & Swasana dan dapatkan upah langsung.</p>
+        </div>
+      </div>
+
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        {filteredJobs.map((job) => {
+          const poster = getPosterDetail(job.posterId);
+          const isMyOwnJob = job.posterId === currentUserId;
+
+          return (
+            <div key={job.id} className="bg-white rounded-3xl border border-slate-200 p-6 flex flex-col justify-between hover:shadow-lg transition-all duration-200">
+              <div>
+                <div className="flex items-center justify-between mb-4">
+                  <span className="bg-emerald-50 text-emerald-800 text-[10px] font-black uppercase tracking-wider px-3 py-1 rounded-full border border-emerald-100">
+                    {job.category}
+                  </span>
+                  <span className="text-[10px] bg-amber-50 text-amber-800 px-3 py-1 rounded-full font-extrabold border border-amber-100">
+                    ⚡ {job.status}
+                  </span>
+                </div>
+
+                <h4 className="font-extrabold text-slate-900 text-lg mb-2 leading-snug">{job.title}</h4>
+                <p className="text-slate-600 text-xs sm:text-sm mb-5 leading-relaxed font-light">{job.description}</p>
+
+                <div className="bg-slate-50 rounded-2xl p-3 border border-slate-100 flex items-center justify-between mb-5">
+                  <div className="flex items-center space-x-3">
+                    <img src={poster.avatar} className="w-8 h-8 rounded-full object-cover border border-emerald-500 shadow-sm" alt="avatar" />
+                    <div>
+                      <p className="text-xs font-bold text-slate-800 leading-none">{poster.name}</p>
+                      <p className="text-[10px] text-slate-400 mt-1">Unit: {poster.unit}</p>
+                    </div>
+                  </div>
+                  <span className="text-[10px] text-slate-400 font-light">{job.createdAt}</span>
+                </div>
+              </div>
+
+              <div className="border-t border-slate-100 pt-4 flex items-center justify-between">
+                <div>
+                  <p className="text-[10px] text-slate-400 uppercase font-bold tracking-wider">Tawaran Upah</p>
+                  <p className="text-base sm:text-lg font-black text-emerald-700">Rp {job.budget.toLocaleString('id-ID')}</p>
+                </div>
+
+                {isMyOwnJob ? (
+                  <span className="text-xs text-slate-400 italic bg-slate-100 px-3 py-2 rounded-xl border border-slate-200">Milik Anda</span>
+                ) : job.status !== 'Aktif' ? (
+                  <button
+                    disabled
+                    className="bg-slate-200 text-slate-400 font-extrabold px-4 py-2.5 rounded-xl text-xs cursor-not-allowed border"
+                  >
+                    🔒 {job.status}
+                  </button>
+                ) : (
+                  <button
+                    onClick={() => startChat(job)}
+                    className="bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold px-4 py-2.5 rounded-xl text-xs transition shadow"
+                  >
+                    💬 Hubungi / Tawar
+                  </button>
+                )}
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+
+  const filteredTalentsWithData = filteredTalents;
+  const filteredJobsWithData = filteredJobs;
+
+  const activeTabContent = activeTab;
+
+  const handleBackToJobs = () => {
+    setActiveTab('jobs');
+  };
+
+  return (
+    <div className="min-h-screen bg-slate-50 text-slate-800 flex flex-col font-sans antialiased pb-24 sm:pb-28">
+      
+      {/* --- QUICK LOGIN BAR --- */}
+      <div className="bg-amber-500/10 border-b border-amber-500/20 py-2 px-4 text-xs z-50">
+        <div className="max-w-6xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-2 font-medium">
+          <div className="text-amber-800 flex items-center space-x-1.5">
+            <span className="text-sm">⚡</span>
+            <span><strong>Akses Cepat Penguji:</strong> Hubungkan instan peran warga/admin</span>
+          </div>
+          <div className="flex gap-2 flex-wrap justify-center">
+            <button onClick={() => handleQuickLogin("u-admin")} className="bg-amber-600 hover:bg-amber-700 text-white px-3 py-1 rounded-lg font-bold text-[10px] transition shadow-sm">🔑 Admin: edhos</button>
+            <button onClick={() => handleQuickLogin("u-1")} className="bg-emerald-600 hover:bg-emerald-700 text-white px-3 py-1 rounded-lg font-bold text-[10px] transition shadow-sm">👤 Warga: Budi</button>
+            {isLoggedIn && (
+              <button onClick={handleLogout} className="text-rose-600 font-bold hover:text-rose-800 transition text-[10px] px-2.5 py-1 bg-white rounded-lg border border-rose-200">Keluar Akun 🚪</button>
+            )}
+          </div>
+        </div>
+      </div>
+
+      {/* --- HEADER SEMENTARA --- */}
+      <header className="bg-emerald-950 text-white sticky top-0 z-40 shadow-lg border-b border-emerald-900">
+        <div className="max-w-6xl mx-auto px-4 py-3.5 flex flex-row items-center justify-between gap-4">
+          
+          <div className="flex items-center space-x-3 cursor-pointer" onClick={() => setActiveTab('jobs')}>
+            <div className="bg-gradient-to-tr from-amber-400 to-amber-500 text-emerald-950 p-2 rounded-xl font-black text-xl shadow-md transform hover:rotate-3 transition">
+              🏢
+            </div>
+            <div>
+              <h1 className="text-sm sm:text-base font-extrabold tracking-tight leading-none">NuansaHub</h1>
+              <p className="text-[9px] text-emerald-300 mt-0.5">Nuansa Pondok Kelapa</p>
+            </div>
+          </div>
+
+          <div className="flex items-center space-x-3">
+            {isLoggedIn ? (
+              <div className="flex items-center space-x-2">
+                <button 
+                  onClick={() => setActiveTab('profile')}
+                  className="bg-emerald-900/80 hover:bg-emerald-800 px-3 py-1.5 rounded-xl text-xs font-bold border border-emerald-800/50 transition flex items-center space-x-2"
+                >
+                  <img src={currentUser?.avatar} className="w-5 h-5 rounded-full object-cover border border-emerald-400" alt="avatar" />
+                  <span className="hidden sm:inline font-bold">{currentUser?.name}</span>
+                </button>
+                {currentUser?.role === 'admin' && (
+                  <button 
+                    onClick={() => setActiveTab('admin')}
+                    className="bg-amber-500 hover:bg-amber-400 text-slate-950 px-3 py-1.5 rounded-xl text-xs font-extrabold shadow transition"
+                  >
+                    🛡️ Admin
+                  </button>
+                )}
+              </div>
+            ) : (
+              <button 
+                onClick={() => {
+                  setAuthTab('login');
+                  setIsAuthModalOpen(true);
+                }}
+                className="bg-gradient-to-r from-amber-400 to-amber-500 hover:from-amber-500 hover:to-amber-600 text-emerald-950 font-black px-4 py-2 rounded-xl text-xs transition shadow-md flex items-center space-x-1.5"
+              >
+                <span>🔑</span>
+                <span>Masuk / Daftar</span>
+              </button>
+            )}
+          </div>
+
+        </div>
+      </header>
+
+      {/* --- HERO BANNER --- */}
+      <section className="bg-gradient-to-br from-emerald-950 via-emerald-900 to-teal-950 text-white py-10 px-4 shadow-xl relative overflow-hidden">
+        <div className="absolute inset-0 opacity-15 bg-[radial-gradient(#38bdf8_1px,transparent_1px)] [background-size:20px_20px]"></div>
+        <div className="max-w-6xl mx-auto relative z-10">
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-center">
+            
+            <div className="lg:col-span-7 space-y-4">
+              <div className="inline-flex items-center space-x-2 bg-emerald-800/60 backdrop-blur px-3 py-1.5 rounded-full text-xs text-emerald-200 border border-emerald-700/50">
+                <span>🏙️</span>
+                <span>Menara Samawa & Menara Swasana</span>
+              </div>
+              <h2 className="text-3xl sm:text-4xl lg:text-5xl font-black tracking-tight leading-none text-transparent bg-clip-text bg-gradient-to-r from-white via-slate-100 to-amber-300">
+                Warga Saling Bantu, Cari Kerja & Jasa.
+              </h2>
+              <p className="text-emerald-100/90 text-sm sm:text-base max-w-xl leading-relaxed font-light">
+                Platform mikro-ekonomi terpercaya eksklusif warga **Nuansa Pondok Kelapa**. Hubungi tetangga seberang unit atau seberang tower secara aman dan kekeluargaan.
+              </p>
+              
+              <div className="flex flex-wrap gap-3 pt-2">
+                <button 
+                  onClick={() => {
+                    if (checkAccess("Membuat lowongan baru")) setIsJobModalOpen(true);
+                  }}
+                  className="bg-gradient-to-r from-amber-400 to-amber-500 hover:from-amber-500 hover:to-amber-600 text-slate-950 font-extrabold px-5 py-3 rounded-2xl text-xs sm:text-sm transition shadow-lg"
+                >
+                  ➕ Pasang Lowongan Kerja
+                </button>
+                <button 
+                  onClick={() => {
+                    if (checkAccess("Menawarkan jasa baru")) setIsTalentModalOpen(true);
+                  }}
+                  className="bg-teal-600/90 hover:bg-teal-600 text-white font-extrabold px-5 py-3 rounded-2xl text-xs sm:text-sm transition border border-teal-500/50 shadow-md"
+                >
+                  📢 Tawarkan Jasa Saya
+                </button>
+              </div>
+            </div>
+
+            {/* Kotak Apresiasi QRIS Admin (edhos / Seblak iZZi) */}
+            <div className="lg:col-span-5 bg-white/5 backdrop-blur-md rounded-3xl p-6 border border-white/10 shadow-2xl space-y-3.5">
+              <div className="flex items-center space-x-2 text-amber-300">
+                <span className="text-2xl">☕</span>
+                <h3 className="font-extrabold text-sm tracking-wide uppercase">Dukungan Server edhos</h3>
+              </div>
+              <p className="text-xs text-slate-200 leading-relaxed font-light">
+                Aplikasi ini dikembangkan sukarela oleh **edhos (Admin)**. Jika platform ini membantu perekonomian atau mempermudah keseharian Anda, berikan dukungan sukarela untuk server kami.
+              </p>
+              <button
+                onClick={() => setIsQRISModalOpen(true)}
+                className="w-full bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-600 hover:to-teal-650 text-white font-extrabold py-3 rounded-2xl text-xs transition shadow-md"
+              >
+                📱 Scan QRIS Dukungan
+              </button>
+            </div>
+
+          </div>
+        </div>
+      </section>
+
+      {/* --- SEKSI PENCARIAN & FILTER KATEGORI --- */}
+      {(activeTab === 'jobs' || activeTab === 'talents') && (
+        <section className="bg-white/95 backdrop-blur border-b border-slate-200 py-4 px-4 sticky top-[57px] z-30 shadow-sm">
+          <div className="max-w-6xl mx-auto flex flex-col sm:flex-row gap-4 items-center justify-between">
+            
+            <div className="relative w-full sm:w-96">
+              <span className="absolute inset-y-0 left-0 flex items-center pl-3 text-slate-400 font-bold">🔍</span>
+              <input
+                type="text"
+                placeholder={activeTab === 'jobs' ? "Cari kerja serabutan, cuci AC, belanja harian..." : "Cari nama tetangga atau bidang keahlian..."}
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="w-full pl-10 pr-4 py-2.5 bg-slate-100 hover:bg-slate-200/50 focus:bg-white border border-slate-200 focus:border-emerald-500 rounded-2xl focus:outline-none transition text-xs sm:text-sm text-slate-800"
+              />
+            </div>
+
+            {activeTab === 'jobs' && (
+              <div className="flex gap-1.5 overflow-x-auto w-full sm:w-auto scrollbar-none pb-1 sm:pb-0">
+                {['Semua', 'Serabutan', 'Profesional', 'Info Loker'].map((category) => (
+                  <button
+                    key={category}
+                    onClick={() => setSelectedCategory(category)}
+                    className={`px-4 py-2 rounded-xl text-xs font-bold whitespace-nowrap transition-all ${
+                      selectedCategory === category
+                        ? 'bg-emerald-600 text-white shadow-md border border-emerald-500'
+                        : 'bg-slate-100 text-slate-600 hover:bg-slate-200 border border-transparent'
+                    }`}
+                  >
+                    {category}
+                  </button>
+                ))}
+              </div>
+            )}
+
+          </div>
+        </section>
+      )}
+
+      {/* --- KONTEN UTAMA --- */}
+      <main className="flex-grow max-w-6xl w-full mx-auto px-4 py-8">
+        {renderMainContent()}
+      </main>
+
+      {/* ================= NAVIGASI MENU DI BAWAH (BOTTOM MENU DOCK) ================= */}
+      <nav className="fixed bottom-0 left-0 right-0 bg-white/95 backdrop-blur-md border-t border-slate-200 py-2 shadow-2xl z-40">
+        <div className="max-w-md mx-auto flex items-center justify-around px-2">
+          
+          <button 
+            onClick={() => {
+              setActiveTab('jobs');
+            }} 
+            className={`flex flex-col items-center justify-center w-14 py-1 transition-all ${activeTab === 'jobs' ? 'text-emerald-700 scale-110 font-bold' : 'text-slate-400 font-normal'}`}
+          >
+            <span className="text-lg">💼</span>
+            <span className="text-[9px] tracking-tight mt-0.5">Kerjaan</span>
+          </button>
+
+          <button 
+            onClick={() => {
+              setActiveTab('talents');
+            }} 
+            className={`flex flex-col items-center justify-center w-14 py-1 transition-all ${activeTab === 'talents' ? 'text-emerald-700 scale-110 font-bold' : 'text-slate-400 font-normal'}`}
+          >
+            <span className="text-lg">🛠️</span>
+            <span className="text-[9px] tracking-tight mt-0.5">Jasa</span>
+          </button>
+
+          <button 
+            onClick={() => {
+              if (checkAccess("Melihat ruang obrolan pribadi")) {
+                setActiveTab('chats');
+              }
+            }} 
+            className={`flex flex-col items-center justify-center w-14 py-1 transition-all ${activeTab === 'chats' ? 'text-emerald-700 scale-110 font-bold' : 'text-slate-400 font-normal'}`}
+          >
+            <span className="text-lg relative">
+              💬
+              {isLoggedIn && !isGuestMode && chats.filter(c => c.parties.includes(currentUserId)).length > 0 && (
+                <span className="absolute -top-1 -right-1.5 bg-rose-500 w-2 h-2 rounded-full"></span>
+              )}
+            </span>
+            <span className="text-[9px] tracking-tight mt-0.5">Obrolan</span>
+          </button>
+
+          <button 
+            onClick={() => {
+              if (checkAccess("Melihat Profil Pribadi")) {
+                setActiveTab('profile');
+              }
+            }} 
+            className={`flex flex-col items-center justify-center w-14 py-1 transition-all ${activeTab === 'profile' ? 'text-emerald-700 scale-110 font-bold' : 'text-slate-400 font-normal'}`}
+          >
+            <span className="text-lg">👤</span>
+            <span className="text-[9px] tracking-tight mt-0.5">Profil</span>
+          </button>
+
+          <button 
+            onClick={() => {
+              setActiveTab('about');
+            }} 
+            className={`flex flex-col items-center justify-center w-14 py-1 transition-all ${activeTab === 'about' ? 'text-emerald-700 scale-110 font-bold' : 'text-slate-400 font-normal'}`}
+          >
+            <span className="text-lg">ℹ️</span>
+            <span className="text-[9px] tracking-tight mt-0.5">Info</span>
+          </button>
+
+        </div>
+      </nav>
+
+      {/* --- RENDER DETIL SUB-TAB SECARA AMAN --- */}
+      {/* 2. TAB JASA WARGA */}
+      {false && renderTalentsTab()}
+      {/* 3. TAB INBOX */}
+      {false && renderChatsTab()}
+      {/* 4. TAB PROFIL */}
+      {false && renderProfileTab()}
+      {/* 5. TAB ADMIN */}
+      {false && renderAdminTab()}
+      {/* 6. TAB TENTANG */}
+      {false && renderAboutTab()}
+
+      {/* ================= MODAL APRESIASI ADMIN (Seblak iZZi) ================= */}
+      {isQRISModalOpen && (
+        <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4 z-50">
+          <div className="bg-white rounded-3xl shadow-2xl w-full max-w-sm text-center p-6 space-y-4 border border-slate-200">
+            <div className="flex justify-between items-center pb-2 border-b">
+              <div className="text-left">
+                <h4 className="font-extrabold text-xs tracking-wider text-emerald-800 uppercase">QRIS Dukungan Server</h4>
+                <p className="text-[10px] text-slate-400">Atas nama: Seblak iZZi</p>
+              </div>
+              <button onClick={() => setIsQRISModalOpen(false)} className="text-slate-400 font-bold hover:text-slate-700">✕</button>
+            </div>
+
+            <div className="bg-slate-50 border rounded-2xl p-4 flex flex-col items-center">
+              <p className="text-base font-black text-slate-800">Seblak iZZi</p>
+              <p className="text-[10px] text-slate-500">NMID : ID1020044041546</p>
+              
+              <div className="bg-white p-2.5 rounded-xl border my-3 shadow-inner">
+                <img 
+                  src="https://api.qrserver.com/v1/create-qr-code/?size=250x250&data=00020101021226590016ID102004404154601189328400001020044045204541153033605802ID5911Seblak%20iZZi6009JAKARTA%20T61051344062070703A016304CAE3" 
+                  alt="QRIS Seblak iZZi"
+                  className="w-44 h-44"
+                />
+              </div>
+            </div>
+
+            <button
+              onClick={() => {
+                setIsQRISModalOpen(false);
+                showToast("❤️ Terima kasih banyak atas kepedulian Anda terhadap NuansaHub!");
+              }}
+              className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold py-3 rounded-xl text-xs transition shadow"
+            >
+              Saya Sudah Selesai Scan 🚀
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* ================= MODAL OTENTIKASI (LOGIN / REGISTER / LUPA SANDI) ================= */}
+      {isAuthModalOpen && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 z-50">
+          <div className="bg-white rounded-3xl shadow-2xl w-full max-w-sm overflow-hidden animate-zoom-in">
+            
+            <div className="bg-emerald-950 text-white px-6 py-4 flex justify-between items-center border-b border-emerald-900">
+              <span className="font-extrabold text-sm tracking-tight">Otentikasi Warga Nuansa</span>
+              <button onClick={() => {
+                setIsAuthModalOpen(false);
+                setForgotStep(1);
+                setForgotUserFound(null);
+              }} className="text-white hover:text-slate-200">✕</button>
+            </div>
+
+            <div className="p-6 space-y-4">
+              {authTab !== 'forgot' && (
+                <div className="flex bg-slate-100 p-1.5 rounded-2xl text-xs font-semibold">
+                  <button
+                    onClick={() => setAuthTab('login')}
+                    className={`w-1/2 py-2 rounded-xl transition ${authTab === 'login' ? 'bg-white text-slate-900 shadow' : 'text-slate-500'}`}
+                  >
+                    🔐 Masuk
+                  </button>
+                  <button
+                    onClick={() => setAuthTab('register')}
+                    className={`w-1/2 py-2 rounded-xl transition ${authTab === 'register' ? 'bg-white text-slate-900 shadow' : 'text-slate-500'}`}
+                  >
+                    📝 Daftar Baru
+                  </button>
+                </div>
+              )}
+
+              {/* FORM LOGIN */}
+              {authTab === 'login' && (
+                <form onSubmit={handleLogin} className="space-y-4">
+                  <div>
+                    <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">Nomor WhatsApp *</label>
+                    <input
+                      type="text"
+                      placeholder="Contoh: 08123456000"
+                      value={inputPhone}
+                      onChange={(e) => setInputPhone(e.target.value)}
+                      className="w-full px-4 py-2.5 border rounded-xl text-xs focus:outline-none focus:ring-1 focus:ring-emerald-500 bg-slate-50"
+                      required
+                    />
+                  </div>
+                  <div>
+                    <div className="flex justify-between mb-1">
+                      <label className="block text-[10px] font-bold text-slate-500 uppercase">Password *</label>
+                      <button 
+                        type="button" 
+                        onClick={() => {
+                          setAuthTab('forgot');
+                          setForgotStep(1);
+                        }} 
+                        className="text-[10px] text-emerald-700 hover:underline font-bold"
+                      >
+                        Lupa Sandi?
+                      </button>
+                    </div>
+                    <input
+                      type="password"
+                      placeholder="Masukkan sandi..."
+                      value={inputPassword}
+                      onChange={(e) => setInputPassword(e.target.value)}
+                      className="w-full px-4 py-2.5 border rounded-xl text-xs focus:outline-none focus:ring-1 focus:ring-emerald-500 bg-slate-50"
+                      required
+                    />
+                  </div>
+                  <button type="submit" className="w-full bg-emerald-700 hover:bg-emerald-600 text-white font-extrabold py-3 rounded-xl text-xs transition shadow-md">
+                    Masuk Sekarang 🚀
+                  </button>
+                </form>
+              )}
+
+              {/* FORM REGISTER */}
+              {authTab === 'register' && (
+                <form onSubmit={handleRegister} className="space-y-3 max-h-[380px] overflow-y-auto pr-1">
+                  <div>
+                    <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">Nama Lengkap *</label>
+                    <input
+                      type="text"
+                      placeholder="Nama asli sesuai KTP"
+                      value={regName}
+                      onChange={(e) => setRegName(e.target.value)}
+                      className="w-full px-3.5 py-2 border rounded-xl text-xs focus:outline-none focus:ring-1 focus:ring-emerald-500 bg-slate-50"
+                      required
+                    />
+                  </div>
+                  <div className="grid grid-cols-2 gap-2">
+                    <div>
+                      <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">Pilih Tower *</label>
+                      <select
+                        value={regTower}
+                        onChange={(e) => setRegTower(e.target.value)}
+                        className="w-full px-2 py-2 border rounded-xl text-xs bg-white focus:outline-none focus:ring-1 focus:ring-emerald-500"
+                      >
+                        <option value="Menara Samawa">Menara Samawa</option>
+                        <option value="Menara Swasana">Menara Swasana</option>
+                      </select>
+                    </div>
+                    <div>
+                      <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">Unit (4 Digit) *</label>
+                      <input
+                        type="text"
+                        maxLength="4"
+                        placeholder="Contoh: 1405"
+                        value={regUnit}
+                        onChange={(e) => setRegUnit(e.target.value)}
+                        className="w-full px-3.5 py-1.5 border rounded-xl text-xs focus:outline-none focus:ring-1 focus:ring-emerald-500 bg-slate-50"
+                        required
+                      />
+                    </div>
+                  </div>
+                  <div>
+                    <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">Nomor WhatsApp *</label>
+                    <input
+                      type="text"
+                      placeholder="Contoh: 08123456000"
+                      value={regPhone}
+                      onChange={(e) => setRegPhone(e.target.value)}
+                      className="w-full px-3.5 py-2 border rounded-xl text-xs focus:outline-none focus:ring-1 focus:ring-emerald-500 bg-slate-50"
+                      required
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">Sandi Masuk *</label>
+                    <input
+                      type="password"
+                      placeholder="Sandi baru Anda"
+                      value={regPassword}
+                      onChange={(e) => setRegPassword(e.target.value)}
+                      className="w-full px-3.5 py-2 border rounded-xl text-xs focus:outline-none focus:ring-1 focus:ring-emerald-500 bg-slate-50"
+                      required
+                    />
+                  </div>
+                  
+                  {/* Pertanyaan Keamanan */}
+                  <div className="border-t pt-2 mt-2 space-y-2">
+                    <p className="text-[9px] font-bold text-emerald-800 uppercase">🛡️ Konfigurasi Pemulihan Sandi</p>
+                    <div>
+                      <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">Pertanyaan Keamanan *</label>
+                      <select
+                        value={regQuestion}
+                        onChange={(e) => setRegQuestion(e.target.value)}
+                        className="w-full px-2 py-1.5 border rounded-xl text-xs bg-white focus:outline-none focus:ring-1 focus:ring-emerald-500"
+                      >
+                        {SECURITY_QUESTIONS.map((q, i) => (
+                          <option key={i} value={q}>{q}</option>
+                        ))}
+                      </select>
+                    </div>
+                    <div>
+                      <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">Jawaban Rahasia *</label>
+                      <input
+                        type="text"
+                        placeholder="Tuliskan jawaban pengingat..."
+                        value={regAnswer}
+                        onChange={(e) => setRegAnswer(e.target.value)}
+                        className="w-full px-3.5 py-2 border rounded-xl text-xs focus:outline-none focus:ring-1 focus:ring-emerald-500 bg-slate-50"
+                        required
+                      />
+                    </div>
+                  </div>
+
+                  <button type="submit" className="w-full bg-emerald-750 hover:bg-emerald-700 text-white font-extrabold py-3 rounded-xl text-xs transition shadow-md">
+                    Daftar Akun Baru ✨
+                  </button>
+                </form>
+              )}
+
+              {/* LUPA SANDI */}
+              {authTab === 'forgot' && (
+                <div className="space-y-4">
+                  <div className="flex justify-between items-center pb-2 border-b">
+                    <h4 className="font-extrabold text-xs text-rose-800 uppercase">Pemulihan Akun</h4>
+                    <button 
+                      onClick={() => setAuthTab('login')} 
+                      className="text-xs text-emerald-700 font-bold hover:underline"
+                    >
+                      Login
+                    </button>
+                  </div>
+
+                  {forgotStep === 1 && (
+                    <form onSubmit={handleForgotSearch} className="space-y-3">
+                      <p className="text-[11px] text-slate-500 leading-relaxed">
+                        Masukkan Nomor WhatsApp terdaftar Anda untuk melihat pertanyaan keamanan.
+                      </p>
+                      <div>
+                        <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">No. WhatsApp *</label>
+                        <input
+                          type="text"
+                          placeholder="Contoh: 08123456000"
+                          value={forgotPhone}
+                          onChange={(e) => setForgotPhone(e.target.value)}
+                          className="w-full px-3.5 py-2.5 border rounded-xl text-xs focus:outline-none"
+                          required
+                        />
+                      </div>
+                      <button type="submit" className="w-full bg-emerald-700 text-white font-bold py-2 rounded-lg text-xs">
+                        Cari Akun Warga 🔍
+                      </button>
+                    </form>
+                  )}
+
+                  {forgotStep === 2 && forgotUserFound && (
+                    <form onSubmit={handleForgotVerifyAnswer} className="space-y-3">
+                      <div className="p-3 bg-emerald-50 rounded-xl border border-emerald-100 text-xs">
+                        <span className="font-bold text-emerald-800 block mb-1">Pertanyaan Keamanan Anda:</span>
+                        <span>"{forgotUserFound.securityQuestion || "Apa nama sekolah dasar (SD) Anda?"}"</span>
+                      </div>
+                      <div>
+                        <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">Jawaban Anda *</label>
+                        <input
+                          type="text"
+                          placeholder="Masukkan jawaban..."
+                          value={forgotAnswer}
+                          onChange={(e) => setForgotAnswer(e.target.value)}
+                          className="w-full px-3.5 py-2.5 border rounded-xl text-xs focus:outline-none"
+                          required
+                        />
+                      </div>
+                      <button type="submit" className="w-full bg-emerald-700 text-white font-bold py-2 rounded-lg text-xs">
+                        Verifikasi Jawaban Keamanan ✅
+                      </button>
+                    </form>
+                  )}
+
+                  {forgotStep === 3 && (
+                    <form onSubmit={handleForgotResetPass} className="space-y-3">
+                      <p className="text-[11px] text-emerald-800 font-bold leading-relaxed">
+                        ✓ Terverifikasi! Tentukan kata sandi baru Anda di bawah ini.
+                      </p>
+                      <div>
+                        <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">Kata Sandi Baru *</label>
+                        <input
+                          type="text"
+                          placeholder="Masukkan sandi baru..."
+                          value={forgotNewPass}
+                          onChange={(e) => setForgotNewPass(e.target.value)}
+                          className="w-full px-3.5 py-2.5 border rounded-xl text-xs focus:outline-none"
+                          required
+                        />
+                      </div>
+                      <button type="submit" className="w-full bg-amber-500 hover:bg-amber-600 text-slate-900 font-extrabold py-2.5 rounded-lg text-xs">
+                        Simpan Sandi Baru 💾
+                      </button>
+                    </form>
+                  )}
+
+                </div>
+              )}
+
+            </div>
+
+          </div>
+        </div>
+      )}
+
+      {/* ================= MODAL AJAKAN MASUK BAGI GUEST ================= */}
+      {isGuestWarningModalOpen && (
+        <div className="fixed inset-0 bg-black/75 backdrop-blur-sm flex items-center justify-center p-4 z-50">
+          <div className="bg-white rounded-3xl shadow-2xl w-full max-w-sm text-center p-6 space-y-4">
+            <span className="text-4xl">🔑</span>
+            <h3 className="font-extrabold text-slate-900 text-base">Butuh Verifikasi Warga</h3>
+            <p className="text-xs text-slate-500 leading-relaxed">
+              Anda mencoba untuk melakukan: <br />
+              <strong className="text-emerald-800">"{guestWarningMessage}"</strong>. <br />
+              Demi kenyamanan dan keamanan internal apartemen **Nuansa Pondok Kelapa**, fitur interaksi dikunci untuk pengunjung yang belum mendaftar.
+            </p>
+
+            <div className="flex flex-col gap-2 pt-1">
+              <button
+                onClick={() => {
+                  setIsGuestWarningModalOpen(false);
+                  setAuthTab('register');
+                  setIsAuthModalOpen(true);
+                }}
+                className="w-full bg-emerald-700 hover:bg-emerald-600 text-white font-extrabold py-3 rounded-xl text-xs transition shadow"
+              >
+                📝 Daftar Akun Warga Baru
+              </button>
+              <button
+                onClick={() => {
+                  setIsGuestWarningModalOpen(false);
+                  setAuthTab('login');
+                  setIsAuthModalOpen(true);
+                }}
+                className="w-full bg-slate-100 hover:bg-slate-200 text-slate-750 font-bold py-2.5 rounded-xl text-xs transition"
+              >
+                🔐 Masuk / Login
+              </button>
+              <button onClick={() => setIsGuestWarningModalOpen(false)} className="text-slate-400 hover:text-slate-600 text-[10px] font-semibold underline">
+                Kembali Melihat Beranda
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ================= MODAL PASANG KERJAAN BARU ================= */}
+      {isJobModalOpen && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 z-50">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm overflow-hidden">
+            <div className="bg-emerald-950 text-white px-5 py-3.5 flex justify-between items-center text-xs">
+              <span className="font-bold">Pasang Lowongan Tugas Baru</span>
+              <button onClick={() => setIsJobModalOpen(false)}>✕</button>
+            </div>
+            <form onSubmit={handleCreateJob} className="p-5 space-y-3.5 text-xs">
+              <div>
+                <label className="block text-[9px] font-bold text-slate-500 uppercase mb-0.5">Judul Pekerjaan *</label>
+                <input
+                  type="text"
+                  placeholder="Contoh: Bantu Jemput Anak Sekolah jam 12 Siang"
+                  value={newJobTitle}
+                  onChange={(e) => setNewJobTitle(e.target.value)}
+                  className="w-full px-3 py-2 border rounded-lg"
+                  required
+                />
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-[9px] font-bold text-slate-500 uppercase mb-0.5">Kategori *</label>
+                  <select
+                    value={newJobCategory}
+                    onChange={(e) => setNewJobCategory(e.target.value)}
+                    className="w-full px-2 py-1.5 border rounded-lg bg-white"
+                  >
+                    <option value="Serabutan">🔨 Serabutan</option>
+                    <option value="Profesional">👔 Profesional</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-[9px] font-bold text-slate-500 uppercase mb-0.5">Upah (Rp) *</label>
+                  <input
+                    type="number"
+                    placeholder="50000"
+                    value={newJobBudget}
+                    onChange={(e) => setNewJobBudget(e.target.value)}
+                    className="w-full px-3 py-1.5 border rounded-lg"
+                    required
+                  />
+                </div>
+              </div>
+              <div>
+                <label className="block text-[9px] font-bold text-slate-500 uppercase mb-0.5">Deskripsi Tugas *</label>
+                <textarea
+                  rows="3"
+                  placeholder="Terangkan kriteria tugas Anda..."
+                  value={newJobDesc}
+                  onChange={(e) => setNewJobDesc(e.target.value)}
+                  className="w-full px-3 py-2 border rounded-lg"
+                  required
+                />
+              </div>
+              <button type="submit" className="w-full bg-emerald-700 hover:bg-emerald-600 text-white font-bold py-2 rounded-lg transition">Tayangkan</button>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* ================= MODAL PENAWARAN JASA BARU ================= */}
+      {isTalentModalOpen && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 z-50">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm overflow-hidden">
+            <div className="bg-emerald-950 text-white px-5 py-3 flex justify-between items-center text-xs">
+              <span className="font-bold">Tawarkan Keahlian Anda</span>
+              <button onClick={() => setIsTalentModalOpen(false)}>✕</button>
+            </div>
+            <form onSubmit={handleCreateTalent} className="p-5 space-y-3.5 text-xs">
+              <div>
+                <label className="block text-[9px] font-bold text-slate-500 uppercase mb-0.5">Keahlian Jasa *</label>
+                <input
+                  type="text"
+                  placeholder="Contoh: Servis AC, Antar Air Galon"
+                  value={newTalentSkill}
+                  onChange={(e) => setNewTalentSkill(e.target.value)}
+                  className="w-full px-3 py-2 border rounded-lg"
+                  required
+                />
+              </div>
+              <div>
+                <label className="block text-[9px] font-bold text-slate-500 uppercase mb-0.5">Keterangan Jasa *</label>
+                <textarea
+                  rows="4"
+                  placeholder="Jelaskan mengenai detail keahlian, hari aktif, tarif perkiraan..."
+                  value={newTalentDesc}
+                  onChange={(e) => setNewTalentDesc(e.target.value)}
+                  className="w-full px-3 py-2 border rounded-lg"
+                  required
+                />
+              </div>
+              <button type="submit" className="w-full bg-emerald-700 hover:bg-emerald-600 text-white font-bold py-2 rounded-lg transition">Daftarkan Jasa</button>
+            </form>
+          </div>
+        </div>
+      )}
+
+    </div>
+  );
+
+  // --- SUB-RENDERS DENGAN VALIDASI FALLBACK OTOMATIS ---
+
+  function renderTalentsTab() {
+    return (
+      <div className="space-y-6">
+        <div className="flex items-center justify-between">
+          <div>
+            <h3 className="text-xl font-extrabold text-slate-900 tracking-tight">Keahlian & Jasa Warga</h3>
+            <p className="text-xs sm:text-sm text-slate-500 font-light">Gunakan jasa tetangga di lingkungan apartemen untuk kenyamanan bersama.</p>
+          </div>
+        </div>
+
+        {filteredTalentsWithData.length === 0 ? (
+          <div className="bg-white rounded-3xl p-12 text-center shadow-sm border border-slate-200">
+            <p className="text-slate-400 text-sm font-light">Tidak ada warga yang mendaftarkan keahlian mereka.</p>
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            {filteredTalentsWithData.map((talent) => {
+              const provider = getPosterDetail(talent.userId);
+              const isMyOwnTalent = talent.userId === currentUserId;
+
+              return (
+                <div key={talent.id} className="bg-white rounded-3xl border border-slate-200 p-6 flex flex-col justify-between hover:shadow-lg transition-all duration-200">
+                  <div>
+                    <div className="flex items-center space-x-3 mb-4">
+                      <img src={provider.avatar} className="w-10 h-10 rounded-full object-cover border border-teal-400 shadow-sm" alt="avatar" />
+                      <div>
+                        <h4 className="font-bold text-slate-900 text-xs sm:text-sm leading-tight">{provider.name}</h4>
+                        <p className="text-[10px] text-slate-400">Unit: {provider.unit}</p>
+                      </div>
+                    </div>
+
+                    <div className="bg-teal-50 text-teal-800 text-xs font-bold px-3 py-1.5 rounded-xl inline-block mb-3 border border-teal-100">
+                      🛠️ {talent.skill}
+                    </div>
+                    <p className="text-slate-600 text-xs sm:text-sm leading-relaxed mb-6 font-light">{talent.description}</p>
+                  </div>
+
+                  {isMyOwnTalent ? (
+                    <span className="text-center text-xs text-slate-400 italic bg-slate-50 py-2.5 rounded-2xl border border-slate-100 block">Jasa Anda</span>
+                  ) : (
+                    <button
+                      onClick={() => {
+                        const mockJob = { id: `talent-inq-${talent.id}`, title: `Tanya Jasa: ${talent.skill}`, posterId: talent.userId };
+                        startChat(mockJob);
+                      }}
+                      className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold py-3 rounded-xl text-xs transition shadow-sm"
+                    >
+                      💬 Tanya / Pesan Jasa
+                    </button>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </div>
+    );
+  }
+
+  function renderChatsTab() {
+    return (
+      <div className="bg-white rounded-3xl border border-slate-200 shadow-lg overflow-hidden grid grid-cols-1 lg:grid-cols-12 min-h-[500px]">
+        {/* List Diskusi Kiri */}
+        <div className="lg:col-span-4 border-r border-slate-200 flex flex-col bg-slate-50/50">
+          <div className="p-4 border-b border-slate-200 bg-white">
+            <h3 className="font-extrabold text-sm text-slate-900">Diskusi Warga</h3>
+          </div>
+          <div className="flex-grow overflow-y-auto divide-y divide-slate-150">
+            {chats.filter(c => c.parties.includes(currentUserId)).map(chat => {
+              const jobRelated = jobs.find(j => j.id === chat.jobId) || { title: "Diskusi Umum" };
+              const otherPartyId = chat.parties.find(p => p !== currentUserId);
+              const otherParty = getPosterDetail(otherPartyId);
+              const lastMsg = chat.messages[chat.messages.length - 1];
+
+              return (
+                <button
+                  key={chat.id}
+                  onClick={() => setActiveChatId(chat.id)}
+                  className={`w-full p-4 text-left transition flex items-start space-x-3 text-xs ${activeChatId === chat.id ? 'bg-emerald-50 border-l-4 border-emerald-600' : 'hover:bg-slate-100'}`}
+                >
+                  <img src={otherParty.avatar} className="w-8 h-8 rounded-full object-cover border" alt="avatar" />
+                  <div className="min-w-0 flex-grow">
+                    <div className="flex justify-between items-center">
+                      <span className="font-bold truncate text-slate-800">{otherParty.name}</span>
+                      <span className="text-[8px] text-slate-400">{lastMsg?.time}</span>
+                    </div>
+                    <p className="text-[9px] text-emerald-800 font-semibold truncate">{jobRelated.title}</p>
+                    <p className="text-[10px] text-slate-500 truncate mt-1">{lastMsg?.text}</p>
+                  </div>
+                </button>
+              );
+            })}
+          </div>
+        </div>
+
+        {/* Ruang Obrolan Kanan */}
+        <div className="lg:col-span-8 flex flex-col justify-between bg-white">
+          {activeChatId ? (
+            (() => {
+              const currentChat = chats.find(c => c.id === activeChatId);
+              const jobRelated = jobs.find(j => j.id === currentChat?.jobId);
+              const otherPartyId = currentChat?.parties.find(p => p !== currentUserId);
+              const otherParty = getPosterDetail(otherPartyId);
+
+              return (
+                <>
+                  <div className="p-4 border-b border-slate-200 bg-slate-50 flex justify-between items-center text-xs">
+                    <div className="flex items-center space-x-2">
+                      <img src={otherParty.avatar} className="w-8 h-8 rounded-full object-cover" alt="avatar" />
+                      <div>
+                        <h4 className="font-bold text-slate-855">{otherParty.name} ({otherParty.unit})</h4>
+                        {jobRelated && <p className="text-[9px] text-slate-400">{jobRelated.title}</p>}
+                      </div>
+                    </div>
+
+                    {jobRelated && (
+                      <div className="flex space-x-1.5">
+                        {jobRelated.status === 'Aktif' && jobRelated.posterId === otherPartyId && (
+                          <button onClick={() => handleDealJob(currentChat)} className="bg-amber-500 hover:bg-amber-400 text-slate-950 font-black px-3 py-1.5 rounded-lg text-[9px] transition">🤝 Sepakati</button>
+                        )}
+                        {jobRelated.status === 'Dikerjakan' && jobRelated.posterId === currentUserId && (
+                          <button onClick={() => handleCompleteJob(currentChat)} className="bg-emerald-600 hover:bg-emerald-700 text-white font-black px-3 py-1.5 rounded-lg text-[9px] transition">✅ Selesai</button>
+                        )}
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="flex-grow p-4 overflow-y-auto space-y-3 bg-slate-50/50 max-h-[350px]">
+                    {currentChat.messages.map((m, i) => (
+                      <div key={i} className={`flex ${m.senderId === currentUserId ? 'justify-end' : 'justify-start'}`}>
+                        <div className={`p-3 rounded-2xl text-xs sm:text-sm max-w-xs sm:max-w-md ${m.senderId === currentUserId ? 'bg-emerald-600 text-white rounded-tr-none shadow' : 'bg-white border text-slate-800 rounded-tl-none shadow-sm'}`}>
+                          <p className="leading-relaxed">{m.text}</p>
+                          <span className="block text-[8px] text-right mt-1 opacity-70">{m.time}</span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+
+                  <form onSubmit={sendChatMessage} className="p-4 border-t flex items-center space-x-2 bg-white">
+                    <input
+                      type="text"
+                      placeholder="Ketik pesan kesepakatan kerja..."
+                      value={chatInputText}
+                      onChange={(e) => setChatInputText(e.target.value)}
+                      className="flex-grow px-4 py-2.5 border rounded-xl text-xs sm:text-sm focus:outline-none focus:ring-1 focus:ring-emerald-500"
+                    />
+                    <button type="submit" className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold px-4 py-2.5 rounded-xl text-xs sm:text-sm transition">Kirim</button>
+                  </form>
+                </>
+              );
+            })()
+          ) : (
+            <div className="h-full flex flex-col justify-center items-center p-12 text-slate-400 text-center space-y-2">
+              <span className="text-4xl">💬</span>
+              <p className="text-slate-600 font-bold text-sm">Belum ada obrolan terpilih</p>
+              <p className="text-xs max-w-xs">Silakan hubungi warga lain dari mading Pasar Kerja atau Jasa untuk berdiskusi.</p>
+            </div>
+          )}
+        </div>
+      </div>
+    );
+  }
+
+  function renderProfileTab() {
+    return (
+      <div className="max-w-4xl mx-auto grid grid-cols-1 md:grid-cols-12 gap-8">
+        {/* Sisi Kiri: Ringkasan Kartu Identitas */}
+        <div className="md:col-span-4 bg-white border border-slate-200 rounded-3xl p-6 text-center space-y-5 h-fit shadow-sm">
+          <div className="relative inline-block">
+            <img src={editAvatar || currentUser?.avatar} className="w-24 h-24 rounded-full object-cover border-4 border-emerald-500 shadow-md mx-auto" alt="avatar" />
+            {currentUser?.verified && (
+              <span className="absolute bottom-0 right-1 bg-emerald-100 text-emerald-800 text-[9px] font-black px-2 py-0.5 rounded-full border border-emerald-300">🛡️ Terverifikasi</span>
+            )}
+          </div>
+          
+          <div>
+            <h3 className="text-lg font-extrabold text-slate-900">{currentUser?.name}</h3>
+            <p className="text-xs text-slate-500 mt-1">Unit: {currentUser?.unit}</p>
+            <span className="inline-block mt-2 bg-emerald-50 text-emerald-800 font-bold text-xs px-3 py-1 rounded-full">
+              🏆 {currentUser?.points} Poin Gotong Royong
+            </span>
+          </div>
+
+          <div className="border-t border-slate-100 pt-4">
+            <p className="text-[11px] text-slate-400 leading-relaxed font-light">
+              Perubahan unit hunian atau menara hanya bisa dilakukan oleh admin **edhos** melalui menu keanggotaan.
+            </p>
+          </div>
+
+          <button onClick={handleLogout} className="w-full bg-rose-50 hover:bg-rose-100 text-rose-800 font-bold py-2.5 rounded-2xl text-xs transition border border-rose-200">
+            Keluar / Logout 🚪
+          </button>
+        </div>
+
+        {/* Sisi Kanan: Form Edit Data Akun */}
+        <form onSubmit={handleSaveProfile} className="md:col-span-8 bg-white border border-slate-200 rounded-3xl p-6 sm:p-8 space-y-6 shadow-sm">
+          <div className="border-b pb-3 border-slate-150">
+            <h3 className="text-lg font-extrabold text-slate-900">Pengaturan Profil & Sandi</h3>
+            <p className="text-xs text-slate-500 font-light">Ubah rincian identitas digital Anda agar mudah dikenali tetangga.</p>
+          </div>
+
+          {/* 1. Edit Foto Profil (PRESET + UPLOAD LOKAL) */}
+          <div className="space-y-4">
+            <label className="block text-xs font-bold text-slate-600 uppercase tracking-wider">Foto Profil Warga</label>
+            
+            {/* Opsi Unggah dari Lokal */}
+            <div className="flex flex-col sm:flex-row sm:items-center gap-4 bg-slate-50 p-4 rounded-2xl border border-slate-200">
+              <div className="flex-shrink-0">
+                <img src={editAvatar || currentUser?.avatar} className="w-16 h-16 rounded-full object-cover border-2 border-emerald-500" alt="Pratinjau" />
+              </div>
+              <div className="space-y-1">
+                <p className="text-xs font-bold text-slate-700">Unggah Foto Baru</p>
+                <p className="text-[10px] text-slate-400">Pilih berkas dari penyimpanan lokal komputer atau HP Anda (Maksimal 2MB).</p>
+                <div className="pt-1">
+                  <input 
+                    type="file" 
+                    id="local-avatar-input-profile" 
+                    accept="image/*"
+                    onChange={handleLocalImageUpload}
+                    className="hidden" 
+                  />
+                  <label 
+                    htmlFor="local-avatar-input-profile" 
+                    className="inline-block bg-emerald-700 hover:bg-emerald-600 text-white font-extrabold text-xs px-4 py-2 rounded-xl cursor-pointer transition shadow-sm"
+                  >
+                    📷 Pilih Berkas Foto
+                  </label>
+                </div>
+              </div>
+            </div>
+
+            {/* Opsi Preset Cepat */}
+            <div className="space-y-2">
+              <span className="text-[11px] text-slate-400 font-bold block">Atau pilih dari avatar default yang tersedia:</span>
+              <div className="grid grid-cols-6 gap-2 max-w-sm">
+                {PRESET_AVATARS.map((avatarUrl, idx) => (
+                  <button
+                    key={idx}
+                    type="button"
+                    onClick={() => {
+                      setIsCustomAvatarUrl(false);
+                      setEditAvatar(avatarUrl);
+                    }}
+                    className={`rounded-full overflow-hidden border-2 transition ${editAvatar === avatarUrl ? 'border-emerald-500 ring-2 ring-emerald-200' : 'border-transparent hover:border-slate-300'}`}
+                  >
+                    <img src={avatarUrl} className="w-10 h-10 object-cover" alt="preset" />
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <div className="pt-2">
+              <div className="flex items-center space-x-2">
+                <input 
+                  type="checkbox" 
+                  id="custom_avatar" 
+                  checked={isCustomAvatarUrl} 
+                  onChange={(e) => setIsCustomAvatarUrl(e.target.checked)} 
+                />
+                <label htmlFor="custom_avatar" className="text-xs text-slate-500 cursor-pointer">Gunakan URL foto eksternal kustom</label>
+              </div>
+              {isCustomAvatarUrl && (
+                <input
+                  type="text"
+                  placeholder="Masukkan URL Gambar (https://...)"
+                  value={editAvatar}
+                  onChange={(e) => setEditAvatar(e.target.value)}
+                  className="w-full mt-2 px-3.5 py-2 border rounded-xl text-xs focus:outline-none focus:ring-1 focus:ring-emerald-500 bg-slate-50"
+                />
+              )}
+            </div>
+          </div>
+
+          {/* 2. Rincian Teks */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div>
+              <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">Nama Tampilan *</label>
+              <input
+                type="text"
+                value={editName}
+                onChange={(e) => setEditName(e.target.value)}
+                className="w-full px-3.5 py-2.5 border rounded-xl text-xs focus:outline-none focus:ring-1 focus:ring-emerald-500 bg-slate-50"
+                required
+              />
+            </div>
+            <div>
+              <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">No. WhatsApp Hubung *</label>
+              <input
+                type="text"
+                value={editPhone}
+                onChange={(e) => setEditPhone(e.target.value)}
+                className="w-full px-3.5 py-2.5 border rounded-xl text-xs focus:outline-none focus:ring-1 focus:ring-emerald-500 bg-slate-50"
+                required
+              />
+            </div>
+          </div>
+
+          {/* 3. Ubah Sandi */}
+          <div>
+            <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">Kata Sandi Baru *</label>
+            <input
+              type="text"
+              placeholder="Atur sandi masuk..."
+              value={editPassword}
+              onChange={(e) => setEditPassword(e.target.value)}
+              className="w-full px-3.5 py-2.5 border rounded-xl text-xs focus:outline-none focus:ring-1 focus:ring-emerald-500 bg-slate-50"
+              required
+            />
+          </div>
+
+          {/* 4. Keamanan Lupa Sandi */}
+          <div className="border-t border-slate-100 pt-4 space-y-3">
+            <h4 className="font-bold text-xs text-slate-700">🛡️ Keamanan Sandi (Jika Lupa Sandi)</h4>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div>
+                <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">Pertanyaan Keamanan *</label>
+                <select
+                  value={editQuestion}
+                  onChange={(e) => setEditQuestion(e.target.value)}
+                  className="w-full px-2 py-2.5 border rounded-xl text-xs bg-white focus:outline-none focus:ring-1 focus:ring-emerald-500"
+                >
+                  {SECURITY_QUESTIONS.map((q, i) => (
+                    <option key={i} value={q}>{q}</option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">Jawaban Pertanyaan Keamanan *</label>
+                <input
+                  type="text"
+                  placeholder="Contoh: Kucing saya manis"
+                  value={editAnswer}
+                  onChange={(e) => setEditAnswer(e.target.value)}
+                  className="w-full px-3.5 py-2.5 border rounded-xl text-xs focus:outline-none focus:ring-1 focus:ring-emerald-500 bg-slate-50"
+                  required
+                />
+              </div>
+            </div>
+          </div>
+
+          <div className="pt-2">
+            <button
+              type="submit"
+              className="w-full bg-emerald-700 hover:bg-emerald-600 text-white font-extrabold py-3 rounded-2xl text-xs sm:text-sm transition shadow-md"
+            >
+              Save / Simpan Perubahan Profil 💾
+            </button>
+          </div>
+        </form>
+      </div>
+    );
+  }
+
+  function renderAdminTab() {
+    return (
+      <div className="space-y-8">
+        <div className="bg-amber-500/10 border border-amber-200 p-6 rounded-2xl flex items-center space-x-3 text-amber-800">
+          <span className="text-2xl">🔒</span>
+          <div>
+            <h4 className="font-bold text-sm">Selamat datang, edhos (Admin)</h4>
+            <p className="text-xs font-light text-slate-600">Gunakan hak akses ini untuk mengatur keanggotaan warga apartemen Menara Samawa & Menara Swasana.</p>
+          </div>
+        </div>
+
+        {/* Manajemen Warga */}
+        <div className="bg-white rounded-3xl border p-6 shadow-sm">
+          <h3 className="font-extrabold text-slate-950 mb-4 text-sm">📋 Keanggotaan & Reset Sandi Warga</h3>
+          <p className="text-xs text-slate-400 mb-4 font-light">Sandi default setelah direset oleh admin adalah <strong className="text-emerald-800">Nuansa123</strong>.</p>
+          <div className="overflow-x-auto text-xs">
+            <table className="w-full text-left">
+              <thead>
+                <tr className="bg-slate-50 text-slate-500 uppercase text-[9px] border-b">
+                  <th className="p-3">Foto</th>
+                  <th className="p-3">Nama Warga</th>
+                  <th className="p-3">Unit</th>
+                  <th className="p-3">No. WA</th>
+                  <th className="p-3">Verifikasi</th>
+                  <th className="p-3 text-center">Tindakan Keamanan</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y animate-fade-in">
+                {users.map(u => (
+                  <tr key={u.id} className="hover:bg-slate-50/50 transition">
+                    <td className="p-3">
+                      <img src={u.avatar} className="w-8 h-8 rounded-full object-cover border" alt="avatar" />
+                    </td>
+                    <td className="p-3">
+                      <p className="font-bold text-slate-800">{u.name}</p>
+                      <p className="text-[9px] text-slate-400 font-mono">ID: {u.id}</p>
+                    </td>
+                    <td className="p-3 text-slate-600 font-light">{u.unit}</td>
+                    <td className="p-3 text-slate-500 font-mono">{u.phone}</td>
+                    <td className="p-3">
+                      <span className={`px-2 py-0.5 rounded-full text-[9px] font-bold ${u.verified ? 'bg-emerald-100 text-emerald-800' : 'bg-rose-100 text-rose-800'}`}>
+                        {u.verified ? 'Terverifikasi' : 'Pending'}
+                      </span>
+                    </td>
+                    <td className="p-3 text-center flex items-center justify-center space-x-1.5">
+                      <button onClick={() => handleToggleVerifyUser(u.id)} className={`px-2 py-1 rounded-lg text-[9px] font-bold transition ${u.verified ? 'bg-rose-100 text-rose-800 hover:bg-rose-200' : 'bg-emerald-100 text-emerald-800 hover:bg-emerald-200'}`}>
+                        {u.verified ? 'Batal' : 'Verifikasi'}
+                      </button>
+                      
+                      {/* Tombol Reset Sandi */}
+                      {u.id !== 'u-admin' && (
+                        <button
+                          onClick={() => {
+                            if (confirm(`Apakah Anda yakin ingin mereset sandi warga "${u.name}" menjadi "Nuansa123"?`)) {
+                              handleAdminResetPassword(u.id);
+                            }
+                          }}
+                          className="bg-amber-150 hover:bg-amber-200 text-amber-900 font-extrabold px-2.5 py-1 rounded-lg text-[9px] transition"
+                        >
+                          Reset Sandi 🔑
+                        </button>
+                      )}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  function renderAboutTab() {
+    return (
+      <div className="bg-white border border-slate-200 rounded-3xl p-8 max-w-2xl mx-auto space-y-4 shadow-sm animate-fade-in">
+        <h3 className="font-extrabold text-lg text-slate-950">Mengenai NuansaHub</h3>
+        <p className="text-xs sm:text-sm text-slate-600 leading-relaxed font-light">
+          **NuansaHub** adalah inovasi mandiri yang didirikan dan dipimpin oleh **edhos (Admin)** guna menggerakkan ekonomi mikro berbasis kegotongroyongan di lingkungan apartemen **Nuansa Pondok Kelapa** (meliputi Menara Samawa & Menara Swasana). 
+        </p>
+        <p className="text-xs sm:text-sm text-slate-600 leading-relaxed font-light">
+          Melalui aplikasi ini, sesama warga dapat berinteraksi, menyewa jasa profesional lokal, dan memposting tugas serabutan harian secara terpadu tanpa perantara.
+        </p>
+      </div>
+    );
+  }
+}
