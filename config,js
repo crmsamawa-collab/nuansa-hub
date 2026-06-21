@@ -2,10 +2,10 @@
 // File ini menyimpan kredensial konfigurasi Firebase secara terpisah agar aman
 
 window.FirebaseConfig = {
-  apiKey: "AIzaSyD-YourSecretApiKeyHere-123456", 
-  authDomain: "nuansahub-pondokkelapa.firebaseapp.com",
-  projectId: "nuansahub-pondokkelapa",
-  storageBucket: "nuansahub-pondokkelapa.appspot.com",
-  messagingSenderId: "123456789012",
-  appId: "1:123456789012:web:abcdef123456789"
+  apiKey: "AIzaSyDRGPD-WHdpkNb1TL4XIsuioPYFMo6KZOU",
+  authDomain: "nuansa-hub.firebaseapp.com",
+  projectId: "nuansa-hub",
+  storageBucket: "nuansa-hub.firebasestorage.app",
+  messagingSenderId: "571717069024",
+  appId: "1:571717069024:web:85a9c992274e37771bc885",
 };
