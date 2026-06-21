@@ -2,7 +2,7 @@
 // File ini menyimpan kredensial konfigurasi Firebase secara terpisah agar aman
 
 window.FirebaseConfig = {
-  apiKey: "SALIN_API_KEY_ANDA_DI_SINI", 
+  apiKey: "AIzaSyDRGPD-WHdpkNb1TL4XIsuioPYFMo6KZOU", 
   authDomain: "nuansahub-pondokkelapa.firebaseapp.com",
   projectId: "nuansahub-pondokkelapa",
   storageBucket: "nuansahub-pondokkelapa.appspot.com",
