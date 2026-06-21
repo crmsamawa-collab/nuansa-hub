@@ -102,6 +102,8 @@
 
     // Inisialisasi Firebase
     let app, auth, db;
+    let isFirebaseConnected = false; // Status koneksi Firebase
+
     try {
       app = initializeApp(firebaseConfig);
       auth = getAuth(app);
@@ -130,10 +132,10 @@
     // State Aplikasi Global dengan Data Mock Awal
     window.AppState = {
       users: [
-        { id: "u-admin", name: "edhos", tower: "Menara Samawa", unit: "0102", phone: "082220691212", password: "admin", role: "admin", verified: true, points: 999, avatar: PRESET_AVATARS[0], securityQuestion: SECURITY_QUESTIONS[0], securityAnswer: "sd pondok kelapa" },
-        { id: "u-1", name: "Budi Santoso", tower: "Menara Swasana", unit: "1405", phone: "08123456000", password: "warga", role: "warga", verified: true, points: 120, avatar: PRESET_AVATARS[2], securityQuestion: SECURITY_QUESTIONS[1], securityAnswer: "kucing" },
-        { id: "u-2", name: "Ibu Desi", tower: "Menara Samawa", unit: "0309", phone: "08111222333", password: "warga", role: "warga", verified: true, points: 45, avatar: PRESET_AVATARS[3], securityQuestion: SECURITY_QUESTIONS[2], securityAnswer: "jakarta" },
-        { id: "u-3", name: "Rian Hidayat", tower: "Menara Samawa", unit: "1205", phone: "08123456789", password: "warga", role: "warga", verified: true, points: 80, avatar: PRESET_AVATARS[4], securityQuestion: SECURITY_QUESTIONS[3], securityAnswer: "hitam" }
+        { id: "u-admin", name: "edhos", tower: "Menara Samawa", unit: "Menara Samawa - 0102", phone: "082220691212", password: "admin", role: "admin", verified: true, points: 999, avatar: PRESET_AVATARS[0], securityQuestion: SECURITY_QUESTIONS[0], securityAnswer: "sd pondok kelapa" },
+        { id: "u-1", name: "Budi Santoso", tower: "Menara Swasana", unit: "Menara Swasana - 1405", phone: "08123456000", password: "warga", role: "warga", verified: true, points: 120, avatar: PRESET_AVATARS[2], securityQuestion: SECURITY_QUESTIONS[1], securityAnswer: "kucing" },
+        { id: "u-2", name: "Ibu Desi", tower: "Menara Samawa", unit: "Menara Samawa - 0309", phone: "08111222333", password: "warga", role: "warga", verified: true, points: 45, avatar: PRESET_AVATARS[3], securityQuestion: SECURITY_QUESTIONS[2], securityAnswer: "jakarta" },
+        { id: "u-3", name: "Rian Hidayat", tower: "Menara Samawa", unit: "Menara Samawa - 1205", phone: "08123456789", password: "warga", role: "warga", verified: true, points: 80, avatar: PRESET_AVATARS[4], securityQuestion: SECURITY_QUESTIONS[3], securityAnswer: "hitam" }
       ],
       jobs: [
         { id: "job-1", title: "Bantu Pindahan Sofa & Meja ke Lantai 15", category: "Serabutan", budget: 150000, posterId: "u-3", description: "Minta tolong 2 orang berbadan sehat untuk angkat sofa lipat dan meja makan dari lobi Menara Samawa ke unit kami di lantai 12. Estimasi pengerjaan cepat sekitar 1 jam saja.", createdAt: "2 jam lalu", status: "Aktif", workerId: null },
@@ -213,8 +215,12 @@
         } else {
           await signInAnonymously(auth);
         }
+        isFirebaseConnected = true;
+        renderApp();
       } catch (err) {
         console.warn("Autentikasi Firebase gagal. Beroperasi dalam mode offline.", err);
+        isFirebaseConnected = false;
+        renderApp();
       }
     };
 
@@ -230,8 +236,43 @@
       const publicDataChatsRef = collection(db, 'artifacts', appIdPath, 'public', 'data', 'chats');
       const publicDataConfigRef = doc(db, 'artifacts', appIdPath, 'public', 'data', 'config', 'qris');
 
+      // Inisialisasi awal data mading & user ke Cloud jika kosong
+      const populateInitialDataIfEmpty = async () => {
+        try {
+          const userSnapshot = await getDocs(publicDataUsersRef);
+          if (userSnapshot.empty) {
+            for (const u of AppState.users) {
+              await setDoc(doc(db, 'artifacts', appIdPath, 'public', 'data', 'users', u.id), u);
+            }
+          }
+          const jobSnapshot = await getDocs(publicDataJobsRef);
+          if (jobSnapshot.empty) {
+            for (const j of AppState.jobs) {
+              await setDoc(doc(db, 'artifacts', appIdPath, 'public', 'data', 'jobs', j.id), j);
+            }
+          }
+          const talentSnapshot = await getDocs(publicDataTalentsRef);
+          if (talentSnapshot.empty) {
+            for (const t of AppState.talents) {
+              await setDoc(doc(db, 'artifacts', appIdPath, 'public', 'data', 'talents', t.id), t);
+            }
+          }
+          const chatSnapshot = await getDocs(publicDataChatsRef);
+          if (chatSnapshot.empty) {
+            for (const c of AppState.chats) {
+              await setDoc(doc(db, 'artifacts', appIdPath, 'public', 'data', 'chats', c.id), c);
+            }
+          }
+        } catch (err) {
+          console.warn("Gagal inisialisasi awal data ke cloud:", err);
+        }
+      };
+
+      populateInitialDataIfEmpty();
+
       // Sinkronisasi Pengguna
       onSnapshot(publicDataUsersRef, (snapshot) => {
+        isFirebaseConnected = true;
         const syncedUsers = [];
         snapshot.forEach(doc => {
           syncedUsers.push({ id: doc.id, ...doc.data() });
@@ -240,10 +281,13 @@
           AppState.users = syncedUsers;
           renderApp();
         }
-      }, (error) => console.log("Kesalahan atau cadangan sinkronisasi pengguna lokal aktif."));
+      }, (error) => {
+        console.warn("Gagal sinkronisasi pengguna cloud.", error);
+      });
 
       // Sinkronisasi Pekerjaan
       onSnapshot(publicDataJobsRef, (snapshot) => {
+        isFirebaseConnected = true;
         const syncedJobs = [];
         snapshot.forEach(doc => {
           syncedJobs.push({ id: doc.id, ...doc.data() });
@@ -252,10 +296,13 @@
           AppState.jobs = syncedJobs;
           renderApp();
         }
-      }, (error) => console.log("Kesalahan atau cadangan sinkronisasi pekerjaan lokal aktif."));
+      }, (error) => {
+        console.warn("Gagal sinkronisasi pekerjaan cloud.", error);
+      });
 
       // Sinkronisasi Jasa
       onSnapshot(publicDataTalentsRef, (snapshot) => {
+        isFirebaseConnected = true;
         const syncedTalents = [];
         snapshot.forEach(doc => {
           syncedTalents.push({ id: doc.id, ...doc.data() });
@@ -264,10 +311,13 @@
           AppState.talents = syncedTalents;
           renderApp();
         }
-      }, (error) => console.log("Kesalahan atau cadangan sinkronisasi keahlian lokal aktif."));
+      }, (error) => {
+        console.warn("Gagal sinkronisasi keahlian cloud.", error);
+      });
 
       // Sinkronisasi Diskusi/Obrolan
       onSnapshot(publicDataChatsRef, (snapshot) => {
+        isFirebaseConnected = true;
         const syncedChats = [];
         snapshot.forEach(doc => {
           syncedChats.push({ id: doc.id, ...doc.data() });
@@ -276,10 +326,13 @@
           AppState.chats = syncedChats;
           renderApp();
         }
-      }, (error) => console.log("Kesalahan atau cadangan sinkronisasi diskusi lokal aktif."));
+      }, (error) => {
+        console.warn("Gagal sinkronisasi diskusi cloud.", error);
+      });
 
       // Sinkronisasi QRIS khusus
       onSnapshot(publicDataConfigRef, (snapshot) => {
+        isFirebaseConnected = true;
         if (snapshot.exists()) {
           const configData = snapshot.data();
           if (configData && configData.image) {
@@ -287,7 +340,9 @@
             renderApp();
           }
         }
-      }, (error) => console.log("Config QRIS tidak terdeteksi di cloud, menggunakan cadangan lokal."));
+      }, (error) => {
+        console.warn("Config QRIS tidak terdeteksi di cloud.", error);
+      });
     };
 
     // Jalankan Autentikasi dan Sinkronisasi Sistem Utama
@@ -298,8 +353,12 @@
       // Dengarkan perubahan login untuk menyalakan sinkronisasi Firestore
       onAuthStateChanged(auth, (user) => {
         if (user) {
+          isFirebaseConnected = true;
           syncFirestoreData();
+        } else {
+          isFirebaseConnected = false;
         }
+        renderApp();
       });
       
       renderApp();
@@ -462,7 +521,15 @@
     window.deleteJobByAdmin = function(jobId) {
       if (confirm("Hapus postingan loker ini?")) {
         AppState.jobs = AppState.jobs.filter(j => j.id !== jobId);
-        showToast("🗑️ Postingan berhasil dihapus oleh Admin.");
+        if (db) {
+          // Hapus juga secara asinkron dari firestore jika db terhubung
+          const docRef = doc(db, 'artifacts', appId, 'public', 'data', 'jobs', jobId);
+          setDoc(docRef, {}).then(() => {
+            showToast("🗑️ Postingan berhasil dihapus dari Cloud.");
+          }).catch(e => console.log(e));
+        } else {
+          showToast("🗑️ Postingan berhasil dihapus secara Lokal.");
+        }
         renderApp();
       }
     };
@@ -755,9 +822,16 @@
       if (modal) modal.style.display = "none";
     };
 
+    // Membuka modal donasi sekaligus mengatur src gambar QRIS secara dinamis agar aman
     window.openQRISModal = function() {
       const modal = document.getElementById("qris-donation-modal");
-      if (modal) modal.style.display = "flex";
+      if (modal) {
+        modal.style.display = "flex";
+        const qrisImg = document.getElementById("qris-image-view");
+        if (qrisImg) {
+          qrisImg.src = AppState.qrisImage;
+        }
+      }
     };
 
     window.closeQRISModal = function() {
@@ -895,9 +969,14 @@
                         <span class="bg-emerald-50 text-emerald-800 text-[10px] font-black uppercase tracking-wider px-3 py-1 rounded-full border border-emerald-100">
                           ${job.category}
                         </span>
-                        <span class="text-[10px] bg-amber-50 text-amber-800 px-3 py-1 rounded-full font-extrabold border border-amber-100">
-                          ⚡ ${job.status}
-                        </span>
+                        <div class="flex items-center gap-1.5">
+                          <span class="text-[10px] bg-amber-50 text-amber-800 px-3 py-1 rounded-full font-extrabold border border-amber-100">
+                            ⚡ ${job.status}
+                          </span>
+                          ${currentUserData?.role === 'admin' ? `
+                            <button onclick="deleteJobByAdmin('${job.id}')" class="text-rose-600 hover:text-rose-800 font-bold text-xs" title="Hapus Lowongan">🗑️</button>
+                          ` : ""}
+                        </div>
                       </div>
 
                       <h4 class="font-extrabold text-slate-900 text-lg mb-2 leading-snug">${job.title}</h4>
@@ -1300,7 +1379,26 @@
             <div class="flex items-center space-x-3 cursor-pointer" onclick="changeTab('jobs')">
               <div class="bg-gradient-to-tr from-amber-400 to-amber-500 text-emerald-950 p-2 rounded-xl font-black text-xl shadow-md">🏢</div>
               <div>
-                <h1 class="text-sm sm:text-base font-extrabold tracking-tight leading-none">NuansaHub</h1>
+                <div class="flex items-center space-x-1.5">
+                  <h1 class="text-sm sm:text-base font-extrabold tracking-tight leading-none">NuansaHub</h1>
+                  <!-- Indikator Hijau Kecil Koneksi Firebase -->
+                  ${isFirebaseConnected ? `
+                    <div class="flex items-center space-x-1" title="Terhubung ke Firebase">
+                      <span class="relative flex h-2 w-2">
+                        <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                        <span class="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
+                      </span>
+                      <span class="text-[8px] text-emerald-400 font-bold hidden sm:inline">Terhubung</span>
+                    </div>
+                  ` : `
+                    <div class="flex items-center space-x-1" title="Mencoba Menghubungkan...">
+                      <span class="relative flex h-2 w-2">
+                        <span class="relative inline-flex rounded-full h-2 w-2 bg-amber-500"></span>
+                      </span>
+                      <span class="text-[8px] text-amber-400 font-bold hidden sm:inline">Offline / Menghubungkan...</span>
+                    </div>
+                  `}
+                </div>
                 <p class="text-[9px] text-emerald-300 mt-0.5">Nuansa Pondok Kelapa</p>
               </div>
             </div>
@@ -1653,7 +1751,8 @@
       <div class="bg-slate-50 border rounded-2xl p-4 flex flex-col items-center">
         <p class="text-base font-black text-slate-800">Dukungan Server NuansaHub</p>
         <div class="bg-white p-2.5 rounded-xl border my-3 shadow-inner max-w-[210px]">
-          <img src="" id="qris-image-view" class="w-full h-auto object-contain cursor-zoom-in" onclick="openFullPhotoModal(document.getElementById('qris-image-view').src, 'QRIS Server')" alt="QRIS Dukungan" onerror="this.src=AppState.qrisImage" />
+          <!-- Menggunakan placeholder SVG transparan agar tidak memicu error load sebelum diinisialisasi secara dinamis -->
+          <img src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 1 1'%3E%3C/svg%3E" id="qris-image-view" class="w-full h-auto object-contain cursor-zoom-in" onclick="openFullPhotoModal(this.src, 'QRIS Server')" alt="QRIS Dukungan" />
         </div>
         <p class="text-[10px] text-slate-400">Klik gambar QRIS untuk memperbesar secara penuh.</p>
       </div>
