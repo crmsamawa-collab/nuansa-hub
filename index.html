@@ -83,7 +83,7 @@
       updateDoc
     } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
-    // Konfigurasi cadangan kosong
+    // Konfigurasi cadangan kosong jika window.FirebaseConfig lambat dimuat
     const defaultFirebaseConfig = {
       apiKey: "",
       authDomain: "",
@@ -107,27 +107,31 @@
 
     const appId = typeof __app_id !== 'undefined' ? __app_id : 'nuansahub-app';
 
-    // Inisialisasi Firebase
+    // Inisialisasi Firebase Global
     let app, auth, db;
     let isFirebaseConnected = false; 
 
-    // Validasi apakah nilai konfigurasi sudah diganti dari placeholder default
-    const isConfigValid = firebaseConfig.apiKey && firebaseConfig.apiKey !== "";
+    // Cek berkala jika API config.js lambat memuat objek FirebaseConfig
+    const checkConfigAndInit = () => {
+      const activeConfig = window.FirebaseConfig || firebaseConfig;
+      const isConfigValid = activeConfig.apiKey && activeConfig.apiKey !== "";
 
-    if (isConfigValid) {
-      try {
-        app = initializeApp(firebaseConfig);
-        auth = getAuth(app);
-        db = getFirestore(app);
-        isFirebaseConnected = true;
-        console.log("Firebase berhasil diinisialisasi melalui Vercel API!");
-      } catch (e) {
-        console.error("Gagal inisialisasi Firebase. Berjalan dalam mode offline.", e);
-        isFirebaseConnected = false;
+      if (isConfigValid) {
+        try {
+          app = initializeApp(activeConfig);
+          auth = getAuth(app);
+          db = getFirestore(app);
+          console.log("Firebase berhasil diinisialisasi secara dinamis!");
+          return true;
+        } catch (e) {
+          console.error("Gagal inisialisasi Firebase. Berjalan dalam mode offline.", e);
+          return false;
+        }
+      } else {
+        console.warn("Konfigurasi Firebase belum terdeteksi. Silakan atur Environment Variables di Dashboard Vercel Anda.");
+        return false;
       }
-    } else {
-      console.warn("Konfigurasi Firebase belum terdeteksi. Silakan atur Environment Variables di Dashboard Vercel Anda.");
-    }
+    };
 
     // --- AVATAR DEFAULT PILIHAN ---
     const PRESET_AVATARS = [
@@ -220,36 +224,6 @@
         setTimeout(() => {
           toastContainer.style.display = "none";
         }, 3500);
-      }
-    };
-
-    // Firebase Core Auth Integration (Penyelarasan RULE 3)
-    const initFirebaseAuth = async () => {
-      // Hentikan loader awal segera setelah inisialisasi selesai dijalankan
-      const hideLoader = () => {
-        const loader = document.getElementById("initial-loader");
-        if (loader) loader.style.display = "none";
-      };
-
-      if (!auth) {
-        hideLoader();
-        return;
-      }
-
-      try {
-        if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
-          await signInWithCustomToken(auth, __initial_auth_token);
-        } else {
-          await signInAnonymously(auth);
-        }
-        isFirebaseConnected = true;
-        renderApp();
-      } catch (err) {
-        console.warn("Autentikasi Firebase gagal. Beroperasi dalam mode offline.", err);
-        isFirebaseConnected = false;
-        renderApp();
-      } finally {
-        hideLoader();
       }
     };
 
@@ -374,21 +348,47 @@
       });
     };
 
-    // Jalankan Autentikasi dan Sinkronisasi Sistem Utama
-    initFirebaseAuth().then(() => {
-      if (auth) {
-        // Dengarkan perubahan login untuk menyalakan sinkronisasi Firestore
-        onAuthStateChanged(auth, (user) => {
-          if (user) {
-            isFirebaseConnected = true;
-            syncFirestoreData();
-          } else {
-            isFirebaseConnected = false;
-          }
-          renderApp();
-        });
+    // Firebase Core Auth Integration (Penyelarasan RULE 3)
+    const initFirebaseAuth = async () => {
+      const hideLoader = () => {
+        const loader = document.getElementById("initial-loader");
+        if (loader) loader.style.display = "none";
+      };
+
+      // Pastikan inisialisasi Firebase dicoba terlebih dahulu
+      const isInitialized = checkConfigAndInit();
+
+      if (!isInitialized || !auth) {
+        console.warn("Firebase tidak diaktifkan. Beroperasi dalam mode offline.");
+        isFirebaseConnected = false;
+        hideLoader();
+        return;
       }
-      renderApp();
+
+      try {
+        if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
+          await signInWithCustomToken(auth, __initial_auth_token);
+        } else {
+          await signInAnonymously(auth);
+        }
+        isFirebaseConnected = true;
+        console.log("Autentikasi Firebase berhasil terhubung!");
+        syncFirestoreData();
+      } catch (err) {
+        console.warn("Autentikasi Firebase gagal. Beroperasi dalam mode offline.", err);
+        isFirebaseConnected = false;
+      } finally {
+        hideLoader();
+        renderApp();
+      }
+    };
+
+    // Jalankan Autentikasi dan Sinkronisasi Sistem Utama pada Load Pertama
+    window.addEventListener('DOMContentLoaded', () => {
+      // Tunggu config.js termuat ke window, lalu inisialisasi
+      setTimeout(() => {
+        initFirebaseAuth();
+      }, 500);
     });
 
     // Navigasi Tab
@@ -1725,11 +1725,6 @@
         AppState.authTab = "login";
         renderAuthModalContent();
       }
-    };
-
-    // Rendering Pertama Kali setelah File siap
-    window.onload = function() {
-      renderApp();
     };
 
   </script>
