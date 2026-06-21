@@ -1,0 +1,1857 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>NuansaHub - Komunitas Nuansa Pondok Kelapa</title>
+  <!-- Tailwind CSS -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- Google Fonts (Poppins & Inter) -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=Poppins:wght@400;600;700;800;900&display=swap" rel="stylesheet">
+  
+  <style>
+    body {
+      font-family: 'Inter', sans-serif;
+    }
+    h1, h2, h3, h4, .font-poppins {
+      font-family: 'Poppins', sans-serif;
+    }
+    /* Sembunyikan scrollbar */
+    .no-scrollbar::-webkit-scrollbar {
+      display: none;
+    }
+    .no-scrollbar {
+      -ms-overflow-style: none;  
+      scrollbar-width: none;  
+    }
+    /* Animasi */
+    @keyframes slideUp {
+      from { transform: translateY(100%); }
+      to { transform: translateY(0); }
+    }
+    .animate-slide-up {
+      animation: slideUp 0.3s ease-out forwards;
+    }
+    @keyframes zoomIn {
+      from { transform: scale(0.95); opacity: 0; }
+      to { transform: scale(1); opacity: 1; }
+    }
+    .animate-zoom-in {
+      animation: zoomIn 0.2s ease-out forwards;
+    }
+  </style>
+</head>
+<body class="bg-slate-50 text-slate-800 pb-24 min-h-screen flex flex-col">
+
+  <!-- APLIKASI UTAMA -->
+  <div id="app" class="flex-grow flex flex-col">
+    <!-- Tampilan Memuat (Loading State) Awal -->
+    <div id="initial-loader" class="fixed inset-0 bg-emerald-950 flex flex-col items-center justify-center z-50 text-white p-6">
+      <div class="bg-amber-400 text-emerald-950 p-4 rounded-3xl font-black text-3xl shadow-xl mb-4 animate-bounce">
+        🏢
+      </div>
+      <h1 class="text-xl font-bold tracking-tight">Memuat NuansaHub...</h1>
+      <p class="text-xs text-emerald-300 mt-2 font-light">Menghubungkan ke Menara Samawa & Swasana</p>
+    </div>
+  </div>
+
+  <!-- MEMUAT KONFIGURASI EKSTERNAL AMAN -->
+  <script src="config.js"></script>
+
+  <!-- FIREBASE SDK IMPORTS -->
+  <script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+    import { 
+      getAuth, 
+      signInWithCustomToken, 
+      signInAnonymously, 
+      onAuthStateChanged,
+      signOut
+    } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+    import { 
+      getFirestore, 
+      doc, 
+      setDoc, 
+      getDoc, 
+      getDocs,
+      collection, 
+      query, 
+      onSnapshot, 
+      addDoc, 
+      updateDoc
+    } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+
+    // Konfigurasi cadangan jika config.js gagal dimuat atau kosong
+    const defaultFirebaseConfig = {
+      apiKey: "",
+      authDomain: "",
+      projectId: "",
+      storageBucket: "",
+      messagingSenderId: "",
+      appId: ""
+    };
+
+    // Sinkronisasi variabel pembacaan konfigurasi Firebase
+    const rawConfig = typeof __firebase_config !== 'undefined' 
+      ? JSON.parse(__firebase_config) 
+      : (window.FirebaseConfig || defaultFirebaseConfig);
+
+    // Memastikan properti kunci terpetakan dengan benar
+    const firebaseConfig = {
+      apiKey: rawConfig.apiKey || rawConfig.BUILD_PLACEHOLDER_API_KEY || "",
+      authDomain: rawConfig.authDomain || rawConfig.BUILD_PLACEHOLDER_AUTH_DOMAIN || "",
+      projectId: rawConfig.projectId || rawConfig.BUILD_PLACEHOLDER_PROJECT_ID || "",
+      storageBucket: rawConfig.storageBucket || rawConfig.BUILD_PLACEHOLDER_STORAGE_BUCKET || "",
+      messagingSenderId: rawConfig.messagingSenderId || rawConfig.BUILD_PLACEHOLDER_MESSAGING_SENDER_ID || "",
+      appId: rawConfig.appId || rawConfig.BUILD_PLACEHOLDER_APP_ID || ""
+    };
+
+    const appId = typeof __app_id !== 'undefined' ? __app_id : 'nuansahub-app';
+
+    // Inisialisasi Firebase
+    let app, auth, db;
+    let isFirebaseConnected = false; // Status koneksi Firebase
+
+    // Validasi apakah konfigurasi valid sebelum diinisialisasi
+    const isValidConfig = firebaseConfig.apiKey && firebaseConfig.projectId;
+
+    if (isValidConfig) {
+      try {
+        app = initializeApp(firebaseConfig);
+        auth = getAuth(app);
+        db = getFirestore(app);
+        isFirebaseConnected = true;
+      } catch (e) {
+        console.error("Gagal inisialisasi Firebase. Menggunakan simulasi mock.", e);
+        isFirebaseConnected = false;
+      }
+    } else {
+      console.warn("Konfigurasi Firebase belum diisi. Berjalan dalam mode simulasi/lokal.");
+    }
+
+    // --- AVATAR DEFAULT PILIHAN ---
+    const PRESET_AVATARS = [
+      "https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=150",
+      "https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=150",
+      "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=150",
+      "https://images.unsplash.com/photo-1544005313-94ddf0286df2?w=150",
+      "https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=150",
+      "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150"
+    ];
+
+    const SECURITY_QUESTIONS = [
+      "Apa nama sekolah dasar (SD) Anda?",
+      "Apa nama hewan peliharaan pertama Anda?",
+      "Di kota mana orang tua Anda pertama kali bertemu?",
+      "Apa warna mobil/motor pertama Anda?"
+    ];
+
+    // State Aplikasi Global dengan Data Mock Awal
+    window.AppState = {
+      users: [
+        { id: "u-admin", name: "edhos", tower: "Menara Samawa", unit: "Menara Samawa - 0102", phone: "082220691212", password: "admin", role: "admin", verified: true, points: 999, avatar: PRESET_AVATARS[0], securityQuestion: SECURITY_QUESTIONS[0], securityAnswer: "sd pondok kelapa" },
+        { id: "u-1", name: "Budi Santoso", tower: "Menara Swasana", unit: "Menara Swasana - 1405", phone: "08123456000", password: "warga", role: "warga", verified: true, points: 120, avatar: PRESET_AVATARS[2], securityQuestion: SECURITY_QUESTIONS[1], securityAnswer: "kucing" },
+        { id: "u-2", name: "Ibu Desi", tower: "Menara Samawa", unit: "Menara Samawa - 0309", phone: "08111222333", password: "warga", role: "warga", verified: true, points: 45, avatar: PRESET_AVATARS[3], securityQuestion: SECURITY_QUESTIONS[2], securityAnswer: "jakarta" },
+        { id: "u-3", name: "Rian Hidayat", tower: "Menara Samawa", unit: "Menara Samawa - 1205", phone: "08123456789", password: "warga", role: "warga", verified: true, points: 80, avatar: PRESET_AVATARS[4], securityQuestion: SECURITY_QUESTIONS[3], securityAnswer: "hitam" }
+      ],
+      jobs: [
+        { id: "job-1", title: "Bantu Pindahan Sofa & Meja ke Lantai 15", category: "Serabutan", budget: 150000, posterId: "u-3", description: "Minta tolong 2 orang berbadan sehat untuk angkat sofa lipat dan meja makan dari lobi Menara Samawa ke unit kami di lantai 12. Estimasi pengerjaan cepat sekitar 1 jam saja.", createdAt: "2 jam lalu", status: "Aktif", workerId: null },
+        { id: "job-2", title: "Jasa Pembersihan Unit Apartemen Kosong", category: "Profesional", budget: 200000, posterId: "u-2", description: "Perlu jasa deep cleaning untuk unit di Menara Samawa sebelum disewakan bulan depan. Alat-alat pembersih standar sudah disediakan di dalam unit.", createdAt: "5 jam lalu", status: "Aktif", workerId: null }
+      ],
+      talents: [
+        { id: "talent-1", userId: "u-1", skill: "Servis AC, TV & Komputer", description: "Melayani jasa perawatan/cuci AC, perbaikan TV mati total, instalasi ulang laptop, dan perbaikan jaringan WiFi lambat khusus untuk warga Nuansa Pondok Kelapa.", rating: 4.9, reviews: 24 }
+      ],
+      chats: [
+        {
+          id: "chat-1",
+          jobId: "job-1",
+          parties: ["u-1", "u-3"],
+          messages: [
+            { senderId: "u-1", text: "Halo Rian, saya Budi dari Swasana. Saya luang siang ini untuk bantu pindahan sofa.", time: "10:30" },
+            { senderId: "u-3", text: "Halo Budi! Kebetulan sekali, bisa bantu langsung setelah jam makan siang nanti?", time: "10:32" },
+            { senderId: "u-1", text: "Bisa, jam 1 siang saya meluncur ke lobi Menara Samawa ya.", time: "10:35" }
+          ]
+        }
+      ],
+      qrisImage: "https://api.qrserver.com/v1/create-qr-code/?size=250x250&data=00020101021226590016ID102004404154601189328400001020044045204541153033605802ID5911Seblak%20iZZi6009JAKARTA%20T61051344062070703A016304CAE3",
+      isLoggedIn: false,
+      isGuestMode: true,
+      currentUserId: null,
+      activeTab: "jobs", 
+      activeChatId: null,
+      searchQuery: "",
+      selectedCategory: "Semua",
+      authTab: "login", 
+      forgotPhone: "",
+      forgotStep: 1,
+      forgotUserFound: null,
+      forgotAnswer: "",
+      forgotNewPass: "",
+      editAvatar: "",
+      isCustomAvatarUrl: false,
+      editName: "",
+      editPhone: "",
+      editPassword: "",
+      editQuestion: "",
+      editAnswer: ""
+    };
+
+    // Fungsi Pembantu Pencari Informasi Pembuat (Global Scope)
+    window.getPosterDetail = function(posterId) {
+      return AppState.users.find(u => u.id === posterId) || { 
+        name: "Warga Nuansa", 
+        unit: "Unit ?", 
+        verified: false, 
+        avatar: "https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=150" 
+      };
+    };
+
+    // Toast Notification Manager
+    window.showToast = function(message) {
+      const toastContainer = document.getElementById("toast-alert");
+      if (toastContainer) {
+        toastContainer.innerHTML = `
+          <div class="bg-slate-900/95 backdrop-blur-md text-white px-6 py-3.5 rounded-2xl shadow-2xl flex items-center text-xs font-semibold border border-slate-700/50 animate-slide-up">
+            <span class="mr-2">💡</span>
+            <span>${message}</span>
+          </div>
+        `;
+        toastContainer.style.display = "block";
+        setTimeout(() => {
+          toastContainer.style.display = "none";
+        }, 3500);
+      }
+    };
+
+    // Firebase Core Auth Integration (Penyelarasan RULE 3)
+    const initFirebaseAuth = async () => {
+      if (!auth) {
+        // Matikan loading jika firebase tidak aktif (mode offline)
+        const loader = document.getElementById("initial-loader");
+        if (loader) loader.style.display = "none";
+        return;
+      }
+      try {
+        if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
+          await signInWithCustomToken(auth, __initial_auth_token);
+        } else {
+          await signInAnonymously(auth);
+        }
+        isFirebaseConnected = true;
+        renderApp();
+      } catch (err) {
+        console.warn("Autentikasi Firebase gagal. Beroperasi dalam mode offline.", err);
+        isFirebaseConnected = false;
+        renderApp();
+      } finally {
+        const loader = document.getElementById("initial-loader");
+        if (loader) loader.style.display = "none";
+      }
+    };
+
+    // SINKRONISASI DATA FIRESTORE REAL-TIME (Kepatuhan RULE 1 & RULE 2)
+    const syncFirestoreData = () => {
+      if (!db || !auth.currentUser) return;
+      
+      const appIdPath = appId;
+      
+      const publicDataJobsRef = collection(db, 'artifacts', appIdPath, 'public', 'data', 'jobs');
+      const publicDataTalentsRef = collection(db, 'artifacts', appIdPath, 'public', 'data', 'talents');
+      const publicDataUsersRef = collection(db, 'artifacts', appIdPath, 'public', 'data', 'users');
+      const publicDataChatsRef = collection(db, 'artifacts', appIdPath, 'public', 'data', 'chats');
+      const publicDataConfigRef = doc(db, 'artifacts', appIdPath, 'public', 'data', 'config', 'qris');
+
+      // Inisialisasi awal data mading & user ke Cloud jika kosong
+      const populateInitialDataIfEmpty = async () => {
+        try {
+          const userSnapshot = await getDocs(publicDataUsersRef);
+          if (userSnapshot.empty) {
+            for (const u of AppState.users) {
+              await setDoc(doc(db, 'artifacts', appIdPath, 'public', 'data', 'users', u.id), u);
+            }
+          }
+          const jobSnapshot = await getDocs(publicDataJobsRef);
+          if (jobSnapshot.empty) {
+            for (const j of AppState.jobs) {
+              await setDoc(doc(db, 'artifacts', appIdPath, 'public', 'data', 'jobs', j.id), j);
+            }
+          }
+          const talentSnapshot = await getDocs(publicDataTalentsRef);
+          if (talentSnapshot.empty) {
+            for (const t of AppState.talents) {
+              await setDoc(doc(db, 'artifacts', appIdPath, 'public', 'data', 'talents', t.id), t);
+            }
+          }
+          const chatSnapshot = await getDocs(publicDataChatsRef);
+          if (chatSnapshot.empty) {
+            for (const c of AppState.chats) {
+              await setDoc(doc(db, 'artifacts', appIdPath, 'public', 'data', 'chats', c.id), c);
+            }
+          }
+        } catch (err) {
+          console.warn("Gagal inisialisasi awal data ke cloud:", err);
+        }
+      };
+
+      populateInitialDataIfEmpty();
+
+      // Sinkronisasi Pengguna
+      onSnapshot(publicDataUsersRef, (snapshot) => {
+        isFirebaseConnected = true;
+        const syncedUsers = [];
+        snapshot.forEach(doc => {
+          syncedUsers.push({ id: doc.id, ...doc.data() });
+        });
+        if (syncedUsers.length > 0) {
+          AppState.users = syncedUsers;
+          renderApp();
+        }
+      }, (error) => {
+        console.warn("Gagal sinkronisasi pengguna cloud.", error);
+      });
+
+      // Sinkronisasi Pekerjaan
+      onSnapshot(publicDataJobsRef, (snapshot) => {
+        isFirebaseConnected = true;
+        const syncedJobs = [];
+        snapshot.forEach(doc => {
+          syncedJobs.push({ id: doc.id, ...doc.data() });
+        });
+        if (syncedJobs.length > 0) {
+          AppState.jobs = syncedJobs;
+          renderApp();
+        }
+      }, (error) => {
+        console.warn("Gagal sinkronisasi pekerjaan cloud.", error);
+      });
+
+      // Sinkronisasi Jasa
+      onSnapshot(publicDataTalentsRef, (snapshot) => {
+        isFirebaseConnected = true;
+        const syncedTalents = [];
+        snapshot.forEach(doc => {
+          syncedTalents.push({ id: doc.id, ...doc.data() });
+        });
+        if (syncedTalents.length > 0) {
+          AppState.talents = syncedTalents;
+          renderApp();
+        }
+      }, (error) => {
+        console.warn("Gagal sinkronisasi keahlian cloud.", error);
+      });
+
+      // Sinkronisasi Diskusi/Obrolan
+      onSnapshot(publicDataChatsRef, (snapshot) => {
+        isFirebaseConnected = true;
+        const syncedChats = [];
+        snapshot.forEach(doc => {
+          syncedChats.push({ id: doc.id, ...doc.data() });
+        });
+        if (syncedChats.length > 0) {
+          AppState.chats = syncedChats;
+          renderApp();
+        }
+      }, (error) => {
+        console.warn("Gagal sinkronisasi diskusi cloud.", error);
+      });
+
+      // Sinkronisasi QRIS khusus
+      onSnapshot(publicDataConfigRef, (snapshot) => {
+        isFirebaseConnected = true;
+        if (snapshot.exists()) {
+          const configData = snapshot.data();
+          if (configData && configData.image) {
+            AppState.qrisImage = configData.image;
+            renderApp();
+          }
+        }
+      }, (error) => {
+        console.warn("Config QRIS tidak terdeteksi di cloud.", error);
+      });
+    };
+
+    // Jalankan Autentikasi dan Sinkronisasi Sistem Utama
+    initFirebaseAuth().then(() => {
+      if (auth) {
+        // Dengarkan perubahan login untuk menyalakan sinkronisasi Firestore
+        onAuthStateChanged(auth, (user) => {
+          if (user) {
+            isFirebaseConnected = true;
+            syncFirestoreData();
+          } else {
+            isFirebaseConnected = false;
+          }
+          renderApp();
+        });
+      }
+      renderApp();
+    });
+
+    // Navigasi Tab
+    window.changeTab = function(tabName) {
+      if ((tabName === 'chats' || tabName === 'profile') && (!AppState.isLoggedIn || AppState.isGuestMode)) {
+        openGuestWarningModal("Mengakses halaman pribadi / obrolan");
+        return;
+      }
+      if (tabName === 'admin') {
+        const user = AppState.users.find(u => u.id === AppState.currentUserId);
+        if (!user || user.role !== 'admin') {
+          showToast("❌ Hanya Admin edhos yang bisa masuk ke tab ini!");
+          return;
+        }
+      }
+      AppState.activeTab = tabName;
+
+      // Isi form ketika tab profil aktif
+      if (tabName === 'profile') {
+        const currentUserData = AppState.users.find(u => u.id === AppState.currentUserId);
+        if (currentUserData) {
+          AppState.editName = currentUserData.name;
+          AppState.editPhone = currentUserData.phone;
+          AppState.editPassword = currentUserData.password;
+          AppState.editQuestion = currentUserData.securityQuestion || SECURITY_QUESTIONS[0];
+          AppState.editAnswer = currentUserData.securityAnswer || "";
+          AppState.editAvatar = currentUserData.avatar;
+        }
+      }
+      renderApp();
+    };
+
+    window.setCategory = function(cat) {
+      AppState.selectedCategory = cat;
+      renderApp();
+    };
+
+    window.searchQueryChange = function(event) {
+      AppState.searchQuery = event.target.value;
+      renderApp();
+    };
+
+    // Login Form Submit
+    window.handleLoginSubmit = function(e) {
+      e.preventDefault();
+      const phone = document.getElementById("login-phone").value;
+      const pass = document.getElementById("login-password").value;
+      const user = AppState.users.find(u => u.phone === phone && u.password === pass);
+
+      if (user) {
+        AppState.isLoggedIn = true;
+        AppState.isGuestMode = false;
+        AppState.currentUserId = user.id;
+        AppState.activeTab = "jobs";
+        closeAuthModal();
+        showToast(`🔑 Selamat datang kembali, ${user.name}!`);
+        renderApp();
+      } else {
+        showToast("❌ Nomor WA atau password salah!");
+      }
+    };
+
+    // Registrasi Warga Baru
+    window.handleRegisterSubmit = function(e) {
+      e.preventDefault();
+      const name = document.getElementById("reg-name").value;
+      const tower = document.getElementById("reg-tower").value;
+      const unit = document.getElementById("reg-unit").value;
+      const phone = document.getElementById("reg-phone").value;
+      const pass = document.getElementById("reg-password").value;
+      const question = document.getElementById("reg-question").value;
+      const answer = document.getElementById("reg-answer").value;
+
+      if (!/^\d{4}$/.test(unit)) {
+        showToast("⚠️ Nomor unit harus berupa 4 digit angka!");
+        return;
+      }
+
+      if (AppState.users.some(u => u.phone === phone)) {
+        showToast("⚠️ Nomor WA ini sudah terdaftar!");
+        return;
+      }
+
+      const newId = `u-${Date.now()}`;
+      const newUser = {
+        id: newId,
+        name,
+        unit: `${tower} - ${unit}`,
+        phone,
+        password: pass,
+        role: "warga",
+        verified: false,
+        points: 10,
+        avatar: PRESET_AVATARS[Math.floor(Math.random() * PRESET_AVATARS.length)],
+        securityQuestion: question,
+        securityAnswer: answer.toLowerCase().trim()
+      };
+
+      AppState.users.push(newUser);
+      
+      if (db) {
+        setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'users', newId), newUser)
+          .then(() => showToast(`🎉 Berhasil Daftar & Menyimpan Data Cloud!`))
+          .catch(err => console.log("Gagal simpan online. Disimpan lokal."));
+      }
+
+      AppState.isLoggedIn = true;
+      AppState.isGuestMode = false;
+      AppState.currentUserId = newId;
+      AppState.activeTab = "jobs";
+      closeAuthModal();
+      renderApp();
+    };
+
+    // Logout
+    window.handleLogoutAction = function() {
+      AppState.isLoggedIn = false;
+      AppState.isGuestMode = true;
+      AppState.currentUserId = null;
+      AppState.activeChatId = null;
+      AppState.activeTab = "jobs";
+      showToast("👋 Berhasil keluar dari akun.");
+      renderApp();
+    };
+
+    // Reset password warga oleh Admin (Nuansa123)
+    window.resetUserPasswordByAdmin = function(userId) {
+      const isConfirmed = confirm("Reset sandi warga menjadi 'Nuansa123'?");
+      if (isConfirmed) {
+        AppState.users = AppState.users.map(u => u.id === userId ? { ...u, password: "Nuansa123" } : u);
+        if (db) {
+          updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'users', userId), { password: "Nuansa123" })
+            .catch(err => console.log("Gagal update cloud."));
+        }
+        showToast("🔑 Sandi berhasil direset menjadi Nuansa123!");
+        renderApp();
+      }
+    };
+
+    // Toggle Verifikasi Warga oleh Admin
+    window.toggleUserVerification = function(userId) {
+      AppState.users = AppState.users.map(u => {
+        if (u.id === userId) {
+          const newVal = !u.verified;
+          if (db) {
+            updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'users', userId), { verified: newVal })
+              .catch(e => console.log("Gagal verifikasi online."));
+          }
+          return { ...u, verified: newVal };
+        }
+        return u;
+      });
+      showToast("🛡️ Status verifikasi warga berhasil diperbarui.");
+      renderApp();
+    };
+
+    // Hapus Loker oleh Admin
+    window.deleteJobByAdmin = function(jobId) {
+      const isConfirmed = confirm("Hapus postingan loker ini?");
+      if (isConfirmed) {
+        AppState.jobs = AppState.jobs.filter(j => j.id !== jobId);
+        if (db) {
+          const docRef = doc(db, 'artifacts', appId, 'public', 'data', 'jobs', jobId);
+          setDoc(docRef, {}).then(() => {
+            showToast("🗑️ Postingan berhasil dihapus dari Cloud.");
+          }).catch(e => console.log(e));
+        } else {
+          showToast("🗑️ Postingan berhasil dihapus secara Lokal.");
+        }
+        renderApp();
+      }
+    };
+
+    // Unggah Foto Profil Warga
+    window.handleProfileImageUpload = function(event) {
+      const file = event.target.files[0];
+      if (file) {
+        if (file.size > 2 * 1024 * 1024) {
+          showToast("⚠️ Maksimal ukuran file foto adalah 2MB!");
+          return;
+        }
+        const reader = new FileReader();
+        reader.onloadend = () => {
+          AppState.editAvatar = reader.result;
+          showToast("📸 Pratinjau foto profil berhasil dimuat!");
+          renderApp();
+        };
+        reader.readAsDataURL(file);
+      }
+    };
+
+    // Penanganan Unggah QRIS dari Admin
+    window.handleQRISUpload = function(event) {
+      const file = event.target.files[0];
+      if (file) {
+        if (file.size > 3 * 1024 * 1024) {
+          showToast("⚠️ Maksimal ukuran file QRIS adalah 3MB!");
+          return;
+        }
+        const reader = new FileReader();
+        reader.onloadend = () => {
+          AppState.qrisImage = reader.result;
+          // Simpan ke Firestore
+          if (db) {
+            setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'config', 'qris'), {
+              image: reader.result,
+              updatedAt: new Date().toISOString()
+            }).then(() => {
+              showToast("📱 QRIS Donasi berhasil diperbarui di cloud!");
+            }).catch(e => {
+              showToast("📱 QRIS tersimpan lokal (Offline).");
+            });
+          } else {
+            showToast("📱 QRIS tersimpan lokal.");
+          }
+          renderApp();
+        };
+        reader.readAsDataURL(file);
+      }
+    };
+
+    // Simpan Perubahan Profil Warga
+    window.handleSaveProfileSubmit = function(e) {
+      e.preventDefault();
+      const name = document.getElementById("edit-name").value;
+      const phone = document.getElementById("edit-phone").value;
+      const pass = document.getElementById("edit-password").value;
+      const question = document.getElementById("edit-question").value;
+      const answer = document.getElementById("edit-answer").value;
+
+      AppState.users = AppState.users.map(u => {
+        if (u.id === AppState.currentUserId) {
+          const updated = {
+            ...u,
+            name,
+            phone,
+            password: pass,
+            avatar: AppState.editAvatar || u.avatar,
+            securityQuestion: question,
+            securityAnswer: answer.toLowerCase().trim()
+          };
+          if (db) {
+            setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'users', u.id), updated)
+              .catch(err => console.log("Gagal memperbarui profil online."));
+          }
+          return updated;
+        }
+        return u;
+      });
+
+      showToast("🌟 Perubahan profil berhasil disimpan!");
+      renderApp();
+    };
+
+    // Memulai Chat baru berdasarkan Lowongan Pekerjaan
+    window.initiateChatFromJob = function(jobId) {
+      if (!checkAccess("Mengirim pesan / berdiskusi pekerjaan")) return;
+      
+      // Penanganan khusus tanya jasa warga
+      let job = AppState.jobs.find(j => j.id === jobId);
+      let isTalentInquiry = jobId.startsWith("talent-inq-");
+      let receiverId = "";
+      let jobTitle = "";
+
+      if (isTalentInquiry) {
+        const talentId = jobId.replace("talent-inq-", "");
+        const talent = AppState.talents.find(t => t.id === talentId);
+        if (!talent) return;
+        receiverId = talent.userId;
+        jobTitle = `Tanya Jasa: ${talent.skill}`;
+      } else {
+        if (!job) return;
+        receiverId = job.posterId;
+        jobTitle = job.title;
+      }
+
+      if (receiverId === AppState.currentUserId) {
+        showToast("⚠️ Anda tidak bisa bernegosiasi dengan diri sendiri.");
+        return;
+      }
+
+      let existingChat = AppState.chats.find(c => 
+        c.jobId === jobId && 
+        c.parties.includes(AppState.currentUserId) && 
+        c.parties.includes(receiverId)
+      );
+
+      if (!existingChat) {
+        const newChatId = `chat-${Date.now()}`;
+        const newChat = {
+          id: newChatId,
+          jobId: jobId,
+          parties: [AppState.currentUserId, receiverId],
+          messages: [
+            { senderId: "system", text: `💬 Ruang obrolan dimulai untuk: "${jobTitle}". Diskusikan rincian upah atau pengerjaan secara kekeluargaan.`, time: "Sistem" }
+          ]
+        };
+        AppState.chats.push(newChat);
+        AppState.activeChatId = newChatId;
+
+        if (db) {
+          setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'chats', newChatId), newChat)
+            .catch(e => console.log("Gagal membuat chat di cloud."));
+        }
+      } else {
+        AppState.activeChatId = existingChat.id;
+      }
+      AppState.activeTab = 'chats';
+      renderApp();
+    };
+
+    // Mengirim pesan chat
+    window.sendChatMessageAction = function(e) {
+      e.preventDefault();
+      const text = document.getElementById("chat-message-input").value;
+      if (!text.trim() || !AppState.activeChatId) return;
+
+      const activeChat = AppState.chats.find(c => c.id === AppState.activeChatId);
+      if (!activeChat) return;
+
+      const updatedChat = {
+        ...activeChat,
+        messages: [
+          ...activeChat.messages,
+          { 
+            senderId: AppState.currentUserId, 
+            text, 
+            time: new Date().toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' }) 
+          }
+        ]
+      };
+
+      AppState.chats = AppState.chats.map(chat => {
+        if (chat.id === AppState.activeChatId) {
+          return updatedChat;
+        }
+        return chat;
+      });
+
+      if (db) {
+        setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'chats', AppState.activeChatId), updatedChat)
+          .catch(e => console.log("Gagal kirim pesan ke cloud."));
+      }
+
+      document.getElementById("chat-message-input").value = "";
+      renderApp();
+    };
+
+    // Menyepakati Pekerjaan
+    window.markJobAsAgreed = function(chatId) {
+      const chat = AppState.chats.find(c => c.id === chatId);
+      if (!chat || !chat.jobId) return;
+
+      // Update status pekerjaan lokal & cloud
+      AppState.jobs = AppState.jobs.map(j => {
+        if (j.id === chat.jobId) {
+          const updatedJob = { ...j, status: "Dikerjakan", workerId: chat.parties.find(p => p !== j.posterId) };
+          if (db) {
+            setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'jobs', j.id), updatedJob)
+              .catch(e => console.log("Gagal update pekerjaan di cloud."));
+          }
+          return updatedJob;
+        }
+        return j;
+      });
+
+      // Tambahkan pesan sistem ke chat lokal & cloud
+      chat.messages.push({
+        senderId: "system",
+        text: `🤝 Pekerjaan telah DISEPAKATI bersama! Pekerja sedang memproses tugas.`,
+        time: "Sistem"
+      });
+
+      if (db) {
+        setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'chats', chatId), chat)
+          .catch(e => console.log("Gagal kirim pesan sistem kesepakatan ke cloud."));
+      }
+
+      showToast("🤝 Pekerjaan berhasil disepakati!");
+      renderApp();
+    };
+
+    // Menyelesaikan Pekerjaan (+ Menambah Poin Gotong Royong)
+    window.markJobAsFinished = function(chatId) {
+      const chat = AppState.chats.find(c => c.id === chatId);
+      if (!chat || !chat.jobId) return;
+
+      // Update status pekerjaan menjadi Selesai
+      AppState.jobs = AppState.jobs.map(j => {
+        if (j.id === chat.jobId) {
+          const updatedJob = { ...j, status: "Selesai" };
+          if (db) {
+            setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'jobs', j.id), updatedJob)
+              .catch(e => console.log("Gagal update pekerjaan selesai di cloud."));
+          }
+          return updatedJob;
+        }
+        return j;
+      });
+
+      // Berikan bonus +25 Poin ke Pekerja
+      const workerId = chat.parties.find(p => p !== AppState.currentUserId);
+      AppState.users = AppState.users.map(u => {
+        if (u.id === workerId) {
+          const updatedUser = { ...u, points: (u.points || 0) + 25 };
+          if (db) {
+            setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'users', u.id), updatedUser)
+              .catch(e => console.log("Gagal update poin warga di cloud."));
+          }
+          return updatedUser;
+        }
+        return u;
+      });
+
+      chat.messages.push({
+        senderId: "system",
+        text: `🎉 Pekerjaan dinyatakan SELESAI! Pekerja menerima apresiasi +25 Poin Gotong Royong.`,
+        time: "Sistem"
+      });
+
+      if (db) {
+        setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'chats', chatId), chat)
+          .catch(e => console.log("Gagal kirim pesan sistem penyelesaian ke cloud."));
+      }
+
+      showToast("🎉 Hebat! Tugas telah diselesaikan.");
+      renderApp();
+    };
+
+    // Modal Utilities
+    window.openAuthModal = function(tabName) {
+      AppState.authTab = tabName;
+      setIsAuthModalOpen(true);
+    };
+
+    window.closeAuthModal = function() {
+      setIsAuthModalOpen(false);
+    };
+
+    window.setIsAuthModalOpen = function(val) {
+      const modal = document.getElementById("auth-modal");
+      if (modal) {
+        modal.style.display = val ? "flex" : "none";
+        if (val) renderAuthModalContent();
+      }
+    };
+
+    window.openGuestWarningModal = function(actionMsg) {
+      AppState.guestWarningMessage = actionMsg;
+      const modal = document.getElementById("guest-warning-modal");
+      if (modal) {
+        document.getElementById("guest-warning-action").innerText = `"${actionMsg}"`;
+        modal.style.display = "flex";
+      }
+    };
+
+    window.closeGuestWarningModal = function() {
+      const modal = document.getElementById("guest-warning-modal");
+      if (modal) modal.style.display = "none";
+    };
+
+    // Membuka modal donasi sekaligus mengatur src gambar QRIS secara dinamis agar aman
+    window.openQRISModal = function() {
+      const modal = document.getElementById("qris-donation-modal");
+      if (modal) {
+        modal.style.display = "flex";
+        const qrisImg = document.getElementById("qris-image-view");
+        if (qrisImg) {
+          qrisImg.src = AppState.qrisImage;
+        }
+      }
+    };
+
+    window.closeQRISModal = function() {
+      const modal = document.getElementById("qris-donation-modal");
+      if (modal) modal.style.display = "none";
+    };
+
+    window.openFullPhotoModal = function(imageUrl, name) {
+      const modal = document.getElementById("full-photo-modal");
+      if (modal) {
+        document.getElementById("full-photo-img").src = imageUrl;
+        document.getElementById("full-photo-title").innerText = name || "Foto Lengkap";
+        modal.style.display = "flex";
+      }
+    };
+
+    window.closeFullPhotoModal = function() {
+      const modal = document.getElementById("full-photo-modal");
+      if (modal) modal.style.display = "none";
+    };
+
+    window.checkAccess = function(actionName) {
+      if (!AppState.isLoggedIn || AppState.isGuestMode) {
+        openGuestWarningModal(actionName);
+        return false;
+      }
+      return true;
+    };
+
+    // Kirim Lowongan Pekerjaan Baru
+    window.handleCreateJobSubmit = function(e) {
+      e.preventDefault();
+      const title = document.getElementById("new-job-title").value;
+      const category = document.getElementById("new-job-category").value;
+      const budget = Number(document.getElementById("new-job-budget").value);
+      const desc = document.getElementById("new-job-desc").value;
+
+      const newJobId = `job-${Date.now()}`;
+      const newJob = {
+        id: newJobId,
+        title,
+        category,
+        budget,
+        posterId: AppState.currentUserId,
+        description: desc,
+        createdAt: "Baru saja",
+        status: "Aktif",
+        workerId: null
+      };
+
+      AppState.jobs.push(newJob);
+      if (db) {
+        setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'jobs', newJobId), newJob)
+          .catch(e => console.log("Gagal membuat pekerjaan online"));
+      }
+
+      document.getElementById("job-creation-modal").style.display = "none";
+      showToast("💼 Lowongan pekerjaan berhasil ditayangkan!");
+      renderApp();
+    };
+
+    // Kirim Jasa Baru
+    window.handleCreateTalentSubmit = function(e) {
+      e.preventDefault();
+      const skill = document.getElementById("new-talent-skill").value;
+      const desc = document.getElementById("new-talent-desc").value;
+
+      const newTalentId = `talent-${Date.now()}`;
+      const newTalent = {
+        id: newTalentId,
+        userId: AppState.currentUserId,
+        skill,
+        description: desc,
+        rating: 5.0,
+        reviews: 0
+      };
+
+      AppState.talents.push(newTalent);
+      if (db) {
+        setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'talents', newTalentId), newTalent)
+          .catch(e => console.log("Gagal membuat penawaran jasa online"));
+      }
+
+      document.getElementById("talent-creation-modal").style.display = "none";
+      showToast("🛠️ Penawaran Jasa Anda berhasil didaftarkan!");
+      renderApp();
+    };
+
+    // RENDERING ENGINE UTAMA
+    function renderApp() {
+      const appDiv = document.getElementById("app");
+      const currentUserData = AppState.users.find(u => u.id === AppState.currentUserId) || null;
+
+      // Filter Lowongan Kerja
+      const jobsFiltered = AppState.jobs.filter(job => {
+        const poster = getPosterDetail(job.posterId);
+        const matchesSearch = job.title.toLowerCase().includes(AppState.searchQuery.toLowerCase()) || 
+                              job.description.toLowerCase().includes(AppState.searchQuery.toLowerCase()) ||
+                              poster.name.toLowerCase().includes(AppState.searchQuery.toLowerCase());
+        const matchesCategory = AppState.selectedCategory === 'Semua' || job.category === AppState.selectedCategory;
+        return matchesSearch && matchesCategory;
+      });
+
+      // Filter Jasa Warga
+      const talentsFiltered = AppState.talents.filter(talent => {
+        const user = getPosterDetail(talent.userId);
+        return talent.skill.toLowerCase().includes(AppState.searchQuery.toLowerCase()) || 
+               user.name.toLowerCase().includes(AppState.searchQuery.toLowerCase()) ||
+               talent.description.toLowerCase().includes(AppState.searchQuery.toLowerCase());
+      });
+
+      let contentHtml = "";
+
+      // Logika Penentuan Tampilan Tab Aktif
+      if (AppState.activeTab === "jobs") {
+        contentHtml = `
+          <div class="space-y-6">
+            <div class="flex items-center justify-between">
+              <div>
+                <h3 class="text-xl font-extrabold text-slate-900 tracking-tight">Mading Lowongan & Kerja Serabutan</h3>
+                <p class="text-xs sm:text-sm text-slate-500 font-light">Selesaikan tugas harian tetangga dekat untuk mendapatkan upah langsung.</p>
+              </div>
+            </div>
+
+            <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+              ${jobsFiltered.map(job => {
+                const poster = getPosterDetail(job.posterId);
+                const isMyOwnJob = job.posterId === AppState.currentUserId;
+                const isBtnDisabled = job.status !== 'Aktif';
+
+                return `
+                  <div class="bg-white rounded-3xl border border-slate-200 p-6 flex flex-col justify-between hover:shadow-lg transition-all duration-200">
+                    <div>
+                      <div class="flex items-center justify-between mb-4">
+                        <span class="bg-emerald-50 text-emerald-800 text-[10px] font-black uppercase tracking-wider px-3 py-1 rounded-full border border-emerald-100">
+                          ${job.category}
+                        </span>
+                        <div class="flex items-center gap-1.5">
+                          <span class="text-[10px] bg-amber-50 text-amber-800 px-3 py-1 rounded-full font-extrabold border border-amber-100">
+                            ⚡ ${job.status}
+                          </span>
+                          ${currentUserData?.role === 'admin' ? `
+                            <button onclick="deleteJobByAdmin('${job.id}')" class="text-rose-600 hover:text-rose-800 font-bold text-xs" title="Hapus Lowongan">🗑️</button>
+                          ` : ""}
+                        </div>
+                      </div>
+
+                      <h4 class="font-extrabold text-slate-900 text-lg mb-2 leading-snug">${job.title}</h4>
+                      <p class="text-slate-600 text-xs sm:text-sm mb-5 leading-relaxed font-light">${job.description}</p>
+
+                      <div class="bg-slate-50 rounded-2xl p-3 border border-slate-100 flex items-center justify-between mb-5">
+                        <div class="flex items-center space-x-3">
+                          <img src="${poster.avatar}" onclick="openFullPhotoModal('${poster.avatar}', '${poster.name}')" class="w-10 h-10 rounded-full object-cover aspect-square border-2 border-emerald-500 shadow-sm cursor-zoom-in" alt="avatar" />
+                          <div>
+                            <p class="text-xs font-bold text-slate-800 leading-none">${poster.name}</p>
+                            <p class="text-[10px] text-slate-400 mt-1">Unit: ${poster.unit}</p>
+                          </div>
+                        </div>
+                        <span class="text-[10px] text-slate-400 font-light">${job.createdAt}</span>
+                      </div>
+                    </div>
+
+                    <div class="border-t border-slate-100 pt-4 flex items-center justify-between">
+                      <div>
+                        <p class="text-[10px] text-slate-400 uppercase font-bold tracking-wider">Tawaran Upah</p>
+                        <p class="text-base sm:text-lg font-black text-emerald-700">Rp ${job.budget.toLocaleString('id-ID')}</p>
+                      </div>
+
+                      ${isMyOwnJob ? `
+                        <span class="text-xs text-slate-400 italic bg-slate-100 px-3 py-2 rounded-xl border border-slate-200">Milik Anda</span>
+                      ` : isBtnDisabled ? `
+                        <button disabled class="bg-slate-200 text-slate-400 font-extrabold px-4 py-2.5 rounded-xl text-xs cursor-not-allowed border">
+                          🔒 ${job.status}
+                        </button>
+                      ` : `
+                        <button onclick="initiateChatFromJob('${job.id}')" class="bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold px-4 py-2.5 rounded-xl text-xs transition shadow">
+                          💬 Hubungi / Tawar
+                        </button>
+                      `}
+                    </div>
+                  </div>
+                `;
+              }).join("")}
+              ${jobsFiltered.length === 0 ? `<p class="text-slate-400 text-center py-10 col-span-2 text-xs font-light">Belum ada lowongan pekerjaan aktif.</p>` : ""}
+            </div>
+          </div>
+        `;
+      } else if (AppState.activeTab === "talents") {
+        contentHtml = `
+          <div class="space-y-6">
+            <div class="flex items-center justify-between">
+              <div>
+                <h3 class="text-xl font-extrabold text-slate-900 tracking-tight">Keahlian & Jasa Warga</h3>
+                <p class="text-xs sm:text-sm text-slate-500 font-light">Gunakan jasa tetangga di lingkungan apartemen untuk kenyamanan bersama.</p>
+              </div>
+            </div>
+
+            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+              ${talentsFiltered.map(talent => {
+                const provider = getPosterDetail(talent.userId);
+                const isMyOwnTalent = talent.userId === AppState.currentUserId;
+
+                return `
+                  <div class="bg-white rounded-3xl border border-slate-200 p-6 flex flex-col justify-between hover:shadow-lg transition-all duration-200">
+                    <div>
+                      <div class="flex items-center space-x-3 mb-4">
+                        <img src="${provider.avatar}" onclick="openFullPhotoModal('${provider.avatar}', '${provider.name}')" class="w-12 h-12 rounded-full object-cover aspect-square border-2 border-teal-400 shadow-sm cursor-zoom-in" alt="avatar" />
+                        <div>
+                          <h4 class="font-bold text-slate-900 text-xs sm:text-sm leading-tight">${provider.name}</h4>
+                          <p class="text-[10px] text-slate-400">Unit: ${provider.unit}</p>
+                        </div>
+                      </div>
+
+                      <div class="bg-teal-50 text-teal-800 text-xs font-bold px-3 py-1.5 rounded-xl inline-block mb-3 border border-teal-100">
+                        🛠️ ${talent.skill}
+                      </div>
+                      <p class="text-slate-600 text-xs sm:text-sm leading-relaxed mb-6 font-light">${talent.description}</p>
+                    </div>
+
+                    ${isMyOwnTalent ? `
+                      <span class="text-center text-xs text-slate-400 italic bg-slate-50 py-2.5 rounded-2xl border border-slate-100 block">Jasa Anda</span>
+                    ` : `
+                      <button onclick="initiateChatFromJob('talent-inq-${talent.id}')" class="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold py-3 rounded-xl text-xs transition shadow-sm">
+                        💬 Tanya / Pesan Jasa
+                      </button>
+                    `}
+                  </div>
+                `;
+              }).join("")}
+              ${talentsFiltered.length === 0 ? `<p class="text-slate-400 text-center py-10 col-span-3 text-xs font-light">Belum ada tawaran jasa terdaftar.</p>` : ""}
+            </div>
+          </div>
+        `;
+      } else if (AppState.activeTab === "chats") {
+        const myChats = AppState.chats.filter(c => c.parties.includes(AppState.currentUserId));
+        const activeChat = AppState.chats.find(c => c.id === AppState.activeChatId);
+        const otherParty = activeChat ? getPosterDetail(activeChat.parties.find(p => p !== AppState.currentUserId)) : null;
+        
+        let chatJob = null;
+        let jobTitleDisplay = "Diskusi Umum";
+        if (activeChat) {
+          if (activeChat.jobId.startsWith("talent-inq-")) {
+            const talentId = activeChat.jobId.replace("talent-inq-", "");
+            const talent = AppState.talents.find(t => t.id === talentId);
+            jobTitleDisplay = talent ? `Tanya Jasa: ${talent.skill}` : "Tanya Jasa";
+          } else {
+            chatJob = AppState.jobs.find(j => j.id === activeChat.jobId);
+            jobTitleDisplay = chatJob ? chatJob.title : "Diskusi Umum";
+          }
+        }
+
+        contentHtml = `
+          <div class="bg-white rounded-3xl border border-slate-200 shadow-lg overflow-hidden grid grid-cols-1 lg:grid-cols-12 min-h-[500px]">
+            <!-- List Diskusi Kiri -->
+            <div class="lg:col-span-4 border-r border-slate-200 flex flex-col bg-slate-50/50">
+              <div class="p-4 border-b border-slate-200 bg-white">
+                <h3 class="font-extrabold text-sm text-slate-900">Diskusi Warga</h3>
+              </div>
+              <div class="flex-grow overflow-y-auto divide-y divide-slate-150">
+                ${myChats.map(c => {
+                  let discussionTitle = "Diskusi Umum";
+                  if (c.jobId.startsWith("talent-inq-")) {
+                    const talentId = c.jobId.replace("talent-inq-", "");
+                    const talent = AppState.talents.find(t => t.id === talentId);
+                    discussionTitle = talent ? `Tanya Jasa: ${talent.skill}` : "Tanya Jasa";
+                  } else {
+                    const jobRef = AppState.jobs.find(j => j.id === c.jobId);
+                    discussionTitle = jobRef ? jobRef.title : "Diskusi Pekerjaan";
+                  }
+
+                  const other = getPosterDetail(c.parties.find(p => p !== AppState.currentUserId));
+                  const lastMsg = c.messages[c.messages.length - 1];
+                  const isSelected = AppState.activeChatId === c.id;
+
+                  return `
+                    <button onclick="window.AppState.activeChatId = '${c.id}'; renderApp();" class="w-full p-4 text-left transition flex items-start space-x-3 text-xs ${isSelected ? 'bg-emerald-50 border-l-4 border-emerald-600' : 'hover:bg-slate-100'}">
+                      <img src="${other.avatar}" onclick="event.stopPropagation(); openFullPhotoModal('${other.avatar}', '${other.name}')" class="w-8 h-8 rounded-full object-cover aspect-square border cursor-zoom-in" alt="avatar" />
+                      <div class="min-w-0 flex-grow">
+                        <div class="flex justify-between items-center">
+                          <span class="font-bold truncate text-slate-800">${other.name}</span>
+                          <span class="text-[8px] text-slate-400">${lastMsg ? lastMsg.time : ""}</span>
+                        </div>
+                        <p class="text-[9px] text-emerald-800 font-semibold truncate">${discussionTitle}</p>
+                        <p class="text-[10px] text-slate-500 truncate mt-1">${lastMsg ? lastMsg.text : ""}</p>
+                      </div>
+                    </button>
+                  `;
+                }).join("")}
+              </div>
+            </div>
+
+            <!-- Area Obrolan Kanan -->
+            <div class="lg:col-span-8 flex flex-col justify-between bg-white">
+              ${activeChat ? `
+                <div class="p-4 border-b border-slate-200 bg-slate-50 flex justify-between items-center text-xs">
+                  <div class="flex items-center space-x-2">
+                    <img src="${otherParty.avatar}" onclick="openFullPhotoModal('${otherParty.avatar}', '${otherParty.name}')" class="w-8 h-8 rounded-full object-cover aspect-square cursor-zoom-in" alt="avatar" />
+                    <div>
+                      <h4 class="font-bold text-slate-800">${otherParty.name} (${otherParty.unit})</h4>
+                      <p class="text-[9px] text-slate-400">${jobTitleDisplay}</p>
+                    </div>
+                  </div>
+
+                  ${chatJob ? `
+                    <div class="flex space-x-1.5">
+                      ${chatJob.status === 'Aktif' && chatJob.posterId === otherParty.id ? `
+                        <button onclick="markJobAsAgreed('${activeChat.id}')" class="bg-amber-500 hover:bg-amber-400 text-slate-950 font-black px-3 py-1.5 rounded-lg text-[9px] transition shadow-sm">🤝 Sepakati</button>
+                      ` : ""}
+                      ${chatJob.status === 'Dikerjakan' && chatJob.posterId === AppState.currentUserId ? `
+                        <button onclick="markJobAsFinished('${activeChat.id}')" class="bg-emerald-600 hover:bg-emerald-700 text-white font-black px-3 py-1.5 rounded-lg text-[9px] transition shadow-sm">✅ Selesai</button>
+                      ` : ""}
+                    </div>
+                  ` : ""}
+                </div>
+
+                <div class="flex-grow p-4 overflow-y-auto space-y-3 bg-slate-50/50 max-h-[350px]">
+                  ${activeChat.messages.map(m => {
+                    const isSystem = m.senderId === "system";
+                    const isMe = m.senderId === AppState.currentUserId;
+                    
+                    if (isSystem) {
+                      return `
+                        <div class="bg-amber-50 border border-amber-200 p-3 rounded-2xl text-center text-[10px] text-amber-900 max-w-md mx-auto my-2">
+                          ${m.text}
+                        </div>
+                      `;
+                    }
+
+                    return `
+                      <div class="flex ${isMe ? 'justify-end' : 'justify-start'}">
+                        <div class="p-3 rounded-2xl text-xs sm:text-sm max-w-xs sm:max-w-md ${isMe ? 'bg-emerald-600 text-white rounded-tr-none shadow' : 'bg-white border text-slate-800 rounded-tl-none shadow-sm'}">
+                          <p class="leading-relaxed">${m.text}</p>
+                          <span class="block text-[8px] text-right mt-1 opacity-70">${m.time}</span>
+                        </div>
+                      </div>
+                    `;
+                  }).join("")}
+                </div>
+
+                <form onsubmit="sendChatMessageAction(event)" class="p-4 border-t flex items-center space-x-2 bg-white">
+                  <input
+                    type="text"
+                    id="chat-message-input"
+                    placeholder="Ketik pesan kesepakatan kerja..."
+                    class="flex-grow px-4 py-2.5 border rounded-xl text-xs sm:text-sm focus:outline-none focus:ring-1 focus:ring-emerald-500"
+                    required
+                  />
+                  <button type="submit" class="bg-emerald-600 hover:bg-emerald-700 text-white font-bold px-4 py-2.5 rounded-xl text-xs sm:text-sm transition shadow-sm">Kirim</button>
+                </form>
+              ` : `
+                <div class="h-full flex flex-col justify-center items-center p-12 text-slate-400 text-center space-y-2">
+                  <span class="text-4xl">💬</span>
+                  <p class="text-slate-600 font-bold text-sm">Belum ada obrolan terpilih</p>
+                  <p class="text-xs max-w-xs font-light">Silakan hubungi warga lain dari mading Pasar Kerja atau Jasa untuk berdiskusi.</p>
+                </div>
+              `}
+            </div>
+          </div>
+        `;
+      } else if (AppState.activeTab === "profile" && currentUserData) {
+        contentHtml = `
+          <div class="max-w-4xl mx-auto grid grid-cols-1 md:grid-cols-12 gap-8">
+            <div class="md:col-span-4 bg-white border border-slate-200 rounded-3xl p-6 text-center space-y-5 h-fit shadow-sm animate-fade-in">
+              <div class="relative inline-block">
+                <img src="${AppState.editAvatar || currentUserData.avatar}" onclick="openFullPhotoModal('${AppState.editAvatar || currentUserData.avatar}', '${currentUserData.name}')" class="w-24 h-24 rounded-full object-cover aspect-square border-4 border-emerald-500 shadow-md mx-auto cursor-zoom-in" alt="avatar" />
+                ${currentUserData.verified ? `<span class="absolute bottom-0 right-1 bg-emerald-100 text-emerald-800 text-[9px] font-black px-2 py-0.5 rounded-full border border-emerald-300">🛡️ Terverifikasi</span>` : ""}
+              </div>
+              
+              <div>
+                <h3 class="text-lg font-extrabold text-slate-900">${currentUserData.name}</h3>
+                <p class="text-xs text-slate-500 mt-1">Unit: ${currentUserData.unit}</p>
+                <span class="inline-block mt-2 bg-emerald-50 text-emerald-800 font-bold text-xs px-3 py-1 rounded-full border border-emerald-200">
+                  🏆 ${currentUserData.points} Poin Gotong Royong
+                </span>
+              </div>
+
+              <button onclick="handleLogoutAction()" class="w-full bg-rose-50 hover:bg-rose-100 text-rose-800 font-bold py-2.5 rounded-2xl text-xs transition border border-rose-200 shadow-sm">
+                Keluar / Logout 🚪
+              </button>
+            </div>
+
+            <form onsubmit="handleSaveProfileSubmit(event)" class="md:col-span-8 bg-white border border-slate-200 rounded-3xl p-6 sm:p-8 space-y-6 shadow-sm">
+              <div class="border-b pb-3 border-slate-150">
+                <h3 class="text-lg font-extrabold text-slate-900">Pengaturan Profil & Sandi</h3>
+                <p class="text-xs text-slate-500">Ubah rincian identitas digital Anda agar mudah dikenali tetangga.</p>
+              </div>
+
+              <!-- Ganti Foto Profil -->
+              <div class="space-y-4">
+                <label class="block text-xs font-bold text-slate-600 uppercase tracking-wider">Foto Profil Warga</label>
+                <div class="flex flex-col sm:flex-row sm:items-center gap-4 bg-slate-50 p-4 rounded-2xl border border-slate-200">
+                  <div class="flex-shrink-0">
+                    <img src="${AppState.editAvatar || currentUserData.avatar}" class="w-16 h-16 rounded-full object-cover aspect-square border-2 border-emerald-500" alt="avatar" />
+                  </div>
+                  <div class="space-y-1">
+                    <p class="text-xs font-bold text-slate-700">Unggah Foto Baru</p>
+                    <div class="pt-1">
+                      <input type="file" id="profile-image-upload-input" accept="image/*" class="hidden" onchange="handleProfileImageUpload(event)" />
+                      <label for="profile-image-upload-input" class="inline-block bg-emerald-700 hover:bg-emerald-600 text-white font-extrabold text-xs px-4 py-2 rounded-xl cursor-pointer transition shadow-sm">
+                        📷 Pilih Berkas Foto
+                      </label>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <label class="block text-[10px] font-bold text-slate-500 uppercase mb-1">Nama Tampilan *</label>
+                  <input type="text" id="edit-name" value="${AppState.editName}" class="w-full px-3.5 py-2.5 border rounded-xl text-xs bg-slate-50 focus:outline-none" required />
+                </div>
+                <div>
+                  <label class="block text-[10px] font-bold text-slate-500 uppercase mb-1">No. WhatsApp *</label>
+                  <input type="text" id="edit-phone" value="${AppState.editPhone}" class="w-full px-3.5 py-2.5 border rounded-xl text-xs bg-slate-50 focus:outline-none" required />
+                </div>
+              </div>
+
+              <div>
+                <label class="block text-[10px] font-bold text-slate-500 uppercase mb-1">Kata Sandi Baru *</label>
+                <input type="text" id="edit-password" value="${AppState.editPassword}" class="w-full px-3.5 py-2.5 border rounded-xl text-xs bg-slate-50 focus:outline-none" required />
+              </div>
+
+              <div class="border-t border-slate-100 pt-4 space-y-3">
+                <h4 class="font-bold text-xs text-slate-700">🛡️ Keamanan Sandi (Jika Lupa Sandi)</h4>
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div>
+                    <label class="block text-[10px] font-bold text-slate-500 uppercase mb-1">Pertanyaan Keamanan *</label>
+                    <select id="edit-question" class="w-full px-2 py-2.5 border rounded-xl text-xs bg-white">
+                      ${SECURITY_QUESTIONS.map(q => `<option value="${q}" ${AppState.editQuestion === q ? "selected" : ""}>${q}</option>`).join("")}
+                    </select>
+                  </div>
+                  <div>
+                    <label class="block text-[10px] font-bold text-slate-500 uppercase mb-1">Jawaban Pertanyaan Keamanan *</label>
+                    <input type="text" id="edit-answer" value="${AppState.editAnswer}" class="w-full px-3.5 py-2.5 border rounded-xl text-xs bg-slate-50 focus:outline-none" required />
+                  </div>
+                </div>
+              </div>
+
+              <button type="submit" class="w-full bg-emerald-700 hover:bg-emerald-600 text-white font-extrabold py-3 rounded-2xl text-sm transition shadow-md">
+                Simpan Perubahan Profil 💾
+              </button>
+            </form>
+          </div>
+        `;
+      } else if (AppState.activeTab === "admin" && currentUserData?.role === 'admin') {
+        contentHtml = `
+          <div class="space-y-8">
+            <div class="bg-amber-500/10 border border-amber-200 p-6 rounded-2xl flex items-center space-x-3 text-amber-800 animate-fade-in">
+              <span class="text-2xl">🔒</span>
+              <div>
+                <h4 class="font-bold text-sm">Selamat datang, edhos (Admin)</h4>
+                <p class="text-xs font-light text-slate-600">Manajemen warga apartemen Menara Samawa & Menara Swasana.</p>
+              </div>
+            </div>
+
+            <!-- Upload File QRIS Baru oleh Admin -->
+            <div class="bg-white rounded-3xl border p-6 shadow-sm">
+              <h3 class="font-extrabold text-slate-950 mb-3 text-sm">📤 Unggah / Ganti Gambar QRIS Donasi</h3>
+              <p class="text-xs text-slate-400 mb-4 font-light">Atur QRIS Donasi Server yang akan ditampilkan kepada warga. Foto terunggah akan disimpan dalam Cloud Firestore.</p>
+              <div class="flex flex-col md:flex-row items-center gap-6 bg-slate-50 p-4 rounded-2xl border border-slate-200">
+                <div class="w-32 h-32 md:w-40 md:h-40 bg-white border rounded-2xl p-2 shadow-inner flex items-center justify-center overflow-hidden">
+                  <img src="${AppState.qrisImage}" onclick="openFullPhotoModal('${AppState.qrisImage}', 'QRIS Keuangan')" class="max-w-full max-h-full object-contain cursor-zoom-in" alt="QRIS Preview" />
+                </div>
+                <div class="space-y-3 text-center md:text-left flex-grow">
+                  <p class="text-xs font-bold text-slate-700">Pilih Berkas QRIS (JPG/PNG)</p>
+                  <p class="text-[11px] text-slate-400">File akan otomatis dikompresi & disimpan di cloud Firestore.</p>
+                  <div>
+                    <input type="file" id="admin-qris-file" accept="image/*" class="hidden" onchange="handleQRISUpload(event)" />
+                    <label for="admin-qris-file" class="inline-block bg-emerald-700 hover:bg-emerald-600 text-white font-extrabold text-xs px-5 py-2.5 rounded-xl cursor-pointer transition shadow-md">
+                      📁 Unggah File QRIS Baru
+                    </label>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Keanggotaan -->
+            <div class="bg-white rounded-3xl border p-6 shadow-sm">
+              <h3 class="font-extrabold text-slate-950 mb-4 text-sm">📋 Keanggotaan & Reset Sandi Warga</h3>
+              <p class="text-xs text-slate-400 mb-4 font-light">Sandi default setelah direset oleh admin adalah <strong class="text-emerald-800">Nuansa123</strong>.</p>
+              <div class="overflow-x-auto text-xs">
+                <table class="w-full text-left">
+                  <thead>
+                    <tr class="bg-slate-50 text-slate-500 uppercase text-[9px] border-b">
+                      <th class="p-3">Foto</th>
+                      <th class="p-3">Nama Warga</th>
+                      <th class="p-3">Unit</th>
+                      <th class="p-3">No. WA</th>
+                      <th class="p-3">Verifikasi</th>
+                      <th class="p-3 text-center">Tindakan Keamanan</th>
+                    </tr>
+                  </thead>
+                  <tbody class="divide-y">
+                    ${AppState.users.map(u => `
+                      <tr>
+                        <td class="p-3">
+                          <img src="${u.avatar}" onclick="openFullPhotoModal('${u.avatar}', '${u.name}')" class="w-8 h-8 rounded-full object-cover aspect-square border cursor-zoom-in" alt="avatar" />
+                        </td>
+                        <td class="p-3">
+                          <p class="font-bold text-slate-800">${u.name}</p>
+                          <p class="text-[9px] text-slate-400 font-mono">ID: ${u.id}</p>
+                        </td>
+                        <td class="p-3 text-slate-600 font-light">${u.unit}</td>
+                        <td class="p-3 text-slate-500 font-mono">${u.phone}</td>
+                        <td class="p-3">
+                          <span class="px-2 py-0.5 rounded-full text-[9px] font-bold ${u.verified ? 'bg-emerald-100 text-emerald-800' : 'bg-rose-100 text-rose-800'}">
+                            ${u.verified ? 'Terverifikasi' : 'Pending'}
+                          </span>
+                        </td>
+                        <td class="p-3 text-center flex items-center justify-center space-x-1.5">
+                          <button onclick="toggleUserVerification('${u.id}')" class="px-2 py-1 rounded-lg text-[9px] font-bold transition ${u.verified ? 'bg-rose-100 text-rose-800 hover:bg-rose-200' : 'bg-emerald-100 text-emerald-800 hover:bg-emerald-200'}">
+                            ${u.verified ? 'Batal' : 'Verifikasi'}
+                          </button>
+                          ${u.id !== 'u-admin' ? `
+                            <button onclick="resetUserPasswordByAdmin('${u.id}')" class="bg-amber-100 hover:bg-amber-200 text-amber-900 font-extrabold px-2.5 py-1 rounded-lg text-[9px]">Reset Sandi 🔑</button>
+                          ` : ""}
+                        </td>
+                      </tr>
+                    `).join("")}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+        `;
+      } else {
+        // Tentang NuansaHub (Halaman Bantuan/Info)
+        contentHtml = `
+          <div class="bg-white border border-slate-200 rounded-3xl p-8 max-w-2xl mx-auto space-y-4 shadow-sm animate-fade-in">
+            <h3 class="font-extrabold text-lg text-slate-950">Mengenai NuansaHub</h3>
+            <p class="text-xs sm:text-sm text-slate-600 leading-relaxed font-light">
+              <strong>NuansaHub</strong> adalah inovasi mandiri yang didirikan dan dipimpin oleh <strong>edhos (Admin)</strong> guna menggerakkan ekonomi mikro berbasis kegotongroyongan di lingkungan apartemen <strong>Nuansa Pondok Kelapa</strong> (meliputi Menara Samawa & Menara Swasana). 
+            </p>
+            <p class="text-xs sm:text-sm text-slate-600 leading-relaxed font-light">
+              Melalui aplikasi ini, sesama warga dapat berinteraksi, menyewa jasa profesional lokal, dan memposting tugas serabutan harian secara terpadu tanpa perantara.
+            </p>
+          </div>
+        `;
+      }
+
+      appDiv.innerHTML = `
+        <!-- HEADER -->
+        <header class="bg-emerald-950 text-white sticky top-0 z-40 shadow-lg border-b border-emerald-900">
+          <div class="max-w-6xl mx-auto px-4 py-3.5 flex flex-row items-center justify-between gap-4">
+            <div class="flex items-center space-x-3 cursor-pointer" onclick="changeTab('jobs')">
+              <div class="bg-gradient-to-tr from-amber-400 to-amber-500 text-emerald-950 p-2 rounded-xl font-black text-xl shadow-md">🏢</div>
+              <div>
+                <div class="flex items-center space-x-1.5">
+                  <h1 class="text-sm sm:text-base font-extrabold tracking-tight leading-none">NuansaHub</h1>
+                  <!-- Indikator Hijau Kecil Koneksi Firebase -->
+                  ${isFirebaseConnected ? `
+                    <div class="flex items-center space-x-1" title="Terhubung ke Firebase">
+                      <span class="relative flex h-2 w-2">
+                        <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                        <span class="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
+                      </span>
+                      <span class="text-[8px] text-emerald-400 font-bold hidden sm:inline">Terhubung</span>
+                    </div>
+                  ` : `
+                    <div class="flex items-center space-x-1" title="Mencoba Menghubungkan...">
+                      <span class="relative flex h-2 w-2">
+                        <span class="relative inline-flex rounded-full h-2 w-2 bg-amber-500"></span>
+                      </span>
+                      <span class="text-[8px] text-amber-400 font-bold hidden sm:inline">Offline / Menghubungkan...</span>
+                    </div>
+                  `}
+                </div>
+                <p class="text-[9px] text-emerald-300 mt-0.5">Nuansa Pondok Kelapa</p>
+              </div>
+            </div>
+
+            <!-- Login / Profile Section -->
+            <div class="flex items-center space-x-2">
+              ${AppState.isLoggedIn && currentUserData ? `
+                <button onclick="changeTab('profile')" class="bg-emerald-900/85 px-3 py-1.5 rounded-xl text-xs font-bold border border-emerald-800 transition flex items-center space-x-2">
+                  <img src="${currentUserData.avatar}" class="w-5 h-5 rounded-full object-cover aspect-square" alt="avatar" />
+                  <span class="hidden sm:inline font-bold">${currentUserData.name}</span>
+                </button>
+                ${currentUserData.role === 'admin' ? `
+                  <button onclick="changeTab('admin')" class="bg-amber-500 text-slate-950 px-3 py-1.5 rounded-xl text-xs font-extrabold shadow-md">🛡️ Admin</button>
+                ` : ""}
+              ` : `
+                <button onclick="openAuthModal('login')" class="bg-gradient-to-r from-amber-400 to-amber-500 text-emerald-950 font-black px-4 py-2 rounded-xl text-xs shadow-md">🔑 Masuk / Daftar</button>
+              `}
+            </div>
+          </div>
+        </header>
+
+        <!-- HERO SECTION -->
+        <section class="bg-gradient-to-br from-emerald-950 via-emerald-900 to-teal-950 text-white py-10 px-4 shadow-xl relative overflow-hidden">
+          <div class="absolute inset-0 opacity-15 bg-[radial-gradient(#38bdf8_1px,transparent_1px)] [background-size:20px_20px]"></div>
+          <div class="max-w-6xl mx-auto relative z-10">
+            <div class="grid grid-cols-1 lg:grid-cols-12 gap-8 items-center">
+              <div class="lg:col-span-7 space-y-4">
+                <div class="inline-flex items-center space-x-2 bg-emerald-800/60 backdrop-blur px-3 py-1.5 rounded-full text-xs text-emerald-200 border border-emerald-700/50">
+                  <span>🏙️</span>
+                  <span>Menara Samawa & Menara Swasana</span>
+                </div>
+                <h2 class="text-3xl sm:text-4xl lg:text-5xl font-black tracking-tight leading-none text-transparent bg-clip-text bg-gradient-to-r from-white via-slate-100 to-amber-300">
+                  Warga Saling Bantu, Cari Kerja & Jasa.
+                </h2>
+                <p class="text-emerald-100/90 text-sm sm:text-base max-w-xl leading-relaxed font-light">
+                  Platform mikro-ekonomi terpercaya eksklusif warga <strong>Nuansa Pondok Kelapa</strong>. Hubungi tetangga seberang unit atau seberang tower secara aman dan kekeluargaan.
+                </p>
+                <div class="flex flex-wrap gap-3 pt-2">
+                  <button onclick="if(checkAccess('Membuat lowongan baru')) document.getElementById('job-creation-modal').style.display='flex'" class="bg-gradient-to-r from-amber-400 to-amber-500 text-slate-950 font-extrabold px-5 py-3 rounded-2xl text-xs sm:text-sm shadow-lg">➕ Pasang Lowongan Kerja</button>
+                  <button onclick="if(checkAccess('Menawarkan jasa baru')) document.getElementById('talent-creation-modal').style.display='flex'" class="bg-teal-600 text-white font-extrabold px-5 py-3 rounded-2xl text-xs sm:text-sm border border-teal-500/50 shadow-md">📢 Tawarkan Jasa Saya</button>
+                </div>
+              </div>
+
+              <!-- Apresiasi Admin QRIS -->
+              <div class="lg:col-span-5 bg-white/5 backdrop-blur-md rounded-3xl p-6 border border-white/10 shadow-2xl space-y-3.5">
+                <div class="flex items-center space-x-2 text-amber-300">
+                  <span class="text-2xl">☕</span>
+                  <h3 class="font-extrabold text-sm tracking-wide uppercase">Dukungan Server edhos</h3>
+                </div>
+                <p class="text-xs text-slate-200 leading-relaxed font-light">
+                  Aplikasi ini dikembangkan sukarela oleh <strong>edhos (Admin)</strong>. Jika membantu keuangan atau mempermudah keseharian Anda, berikan dukungan sukarela untuk server kami.
+                </p>
+                <button onclick="openQRISModal()" class="w-full bg-gradient-to-r from-emerald-500 to-teal-500 text-white font-extrabold py-3 rounded-2xl text-xs transition shadow-md">📱 Scan QRIS Dukungan</button>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <!-- SEKSI FILTER PENCARIAN -->
+        ${(AppState.activeTab === 'jobs' || AppState.activeTab === 'talents') ? `
+          <section class="bg-white/95 backdrop-blur border-b border-slate-200 py-4 px-4 sticky top-[57px] z-30 shadow-sm">
+            <div class="max-w-6xl mx-auto flex flex-col sm:flex-row gap-4 items-center justify-between">
+              <div class="relative w-full sm:w-96">
+                <span class="absolute inset-y-0 left-0 flex items-center pl-3 text-slate-400 font-bold">🔍</span>
+                <input
+                  type="text"
+                  placeholder="${AppState.activeTab === 'jobs' ? "Cari kerja serabutan, cuci AC, belanja harian..." : "Cari nama tetangga atau bidang keahlian..."}"
+                  oninput="searchQueryChange(event)"
+                  value="${AppState.searchQuery}"
+                  class="w-full pl-10 pr-4 py-2.5 bg-slate-100 border border-slate-200 rounded-2xl text-xs sm:text-sm text-slate-800"
+                />
+              </div>
+
+              ${AppState.activeTab === 'jobs' ? `
+                <div class="flex gap-1.5 overflow-x-auto w-full sm:w-auto scrollbar-none pb-1 sm:pb-0">
+                  ${['Semua', 'Serabutan', 'Profesional', 'Info Loker'].map(category => `
+                    <button onclick="setCategory('${category}')" class="px-4 py-2 rounded-xl text-xs font-bold whitespace-nowrap transition-all ${AppState.selectedCategory === category ? 'bg-emerald-600 text-white shadow-md border border-emerald-500' : 'bg-slate-100 text-slate-600 hover:bg-slate-200 border border-transparent'}">
+                      ${category}
+                    </button>
+                  `).join("")}
+                </div>
+              ` : ""}
+            </div>
+          </section>
+        ` : ""}
+
+        <!-- AREA KONTEN UTAMA -->
+        <main class="flex-grow max-w-6xl w-full mx-auto px-4 py-8 animate-fade-in">
+          ${contentHtml}
+        </main>
+
+        <!-- NAVIGASI BOTTOM BAR -->
+        <nav class="fixed bottom-0 left-0 right-0 bg-white/95 backdrop-blur-md border-t border-slate-200 py-2 shadow-2xl z-40">
+          <div class="max-w-md mx-auto flex items-center justify-around px-2">
+            <button onclick="changeTab('jobs')" class="flex flex-col items-center justify-center w-14 py-1 transition-all ${AppState.activeTab === 'jobs' ? 'text-emerald-700 scale-110 font-bold' : 'text-slate-400 font-normal'}">
+              <span class="text-lg">💼</span>
+              <span class="text-[9px] tracking-tight mt-0.5 font-bold">Kerjaan</span>
+            </button>
+            <button onclick="changeTab('talents')" class="flex flex-col items-center justify-center w-14 py-1 transition-all ${AppState.activeTab === 'talents' ? 'text-emerald-700 scale-110 font-bold' : 'text-slate-400 font-normal'}">
+              <span class="text-lg">🛠️</span>
+              <span class="text-[9px] tracking-tight mt-0.5 font-bold">Jasa</span>
+            </button>
+            <button onclick="changeTab('chats')" class="flex flex-col items-center justify-center w-14 py-1 transition-all ${AppState.activeTab === 'chats' ? 'text-emerald-700 scale-110 font-bold' : 'text-slate-400 font-normal'}">
+              <span class="text-lg relative">💬</span>
+              <span class="text-[9px] tracking-tight mt-0.5 font-bold">Obrolan</span>
+            </button>
+            <button onclick="changeTab('profile')" class="flex flex-col items-center justify-center w-14 py-1 transition-all ${AppState.activeTab === 'profile' ? 'text-emerald-700 scale-110 font-bold' : 'text-slate-400 font-normal'}">
+              <span class="text-lg">👤</span>
+              <span class="text-[9px] tracking-tight mt-0.5 font-bold">Profil</span>
+            </button>
+            <button onclick="changeTab('about')" class="flex flex-col items-center justify-center w-14 py-1 transition-all ${AppState.activeTab === 'about' ? 'text-emerald-700 scale-110 font-bold' : 'text-slate-400 font-normal'}">
+              <span class="text-lg">ℹ️</span>
+              <span class="text-[9px] tracking-tight mt-0.5 font-bold">Info</span>
+            </button>
+          </div>
+        </nav>
+      `;
+    }
+
+    // Dynamic rendering helper untuk Autentikasi
+    window.renderAuthModalContent = function() {
+      const authContent = document.getElementById("auth-modal-body");
+      if (!authContent) return;
+
+      const isLogin = AppState.authTab === 'login';
+      const isRegister = AppState.authTab === 'register';
+      const isForgot = AppState.authTab === 'forgot';
+
+      let tabsHtml = `
+        <div class="flex border-b border-slate-200 mb-5 text-xs font-bold">
+          <button type="button" onclick="AppState.authTab = 'login'; renderAuthModalContent();" class="w-1/2 pb-3 text-center border-b-2 transition-all ${isLogin ? 'border-emerald-700 text-emerald-800' : 'border-transparent text-slate-400 hover:text-slate-600'}">
+            🔑 MASUK (LOGIN)
+          </button>
+          <button type="button" onclick="AppState.authTab = 'register'; renderAuthModalContent();" class="w-1/2 pb-3 text-center border-b-2 transition-all ${isRegister ? 'border-emerald-700 text-emerald-800' : 'border-transparent text-slate-400 hover:text-slate-600'}">
+            📝 DAFTAR AKUN
+          </button>
+        </div>
+      `;
+
+      if (isLogin) {
+        authContent.innerHTML = `
+          ${tabsHtml}
+          <form onsubmit="handleLoginSubmit(event)" class="space-y-4">
+            <div>
+              <label class="block text-[10px] font-bold text-slate-500 uppercase mb-1">Nomor WhatsApp *</label>
+              <input type="text" id="login-phone" placeholder="Contoh: 08123456000" class="w-full px-4 py-2.5 border rounded-xl text-xs bg-slate-50 focus:outline-none" required />
+            </div>
+            <div>
+              <div class="flex justify-between mb-1">
+                <label class="block text-[10px] font-bold text-slate-500 uppercase">Password *</label>
+                <button type="button" onclick="AppState.authTab = 'forgot'; AppState.forgotStep = 1; renderAuthModalContent();" class="text-[10px] text-emerald-700 hover:underline font-bold">Lupa Sandi?</button>
+              </div>
+              <input type="password" id="login-password" placeholder="Masukkan sandi..." class="w-full px-4 py-2.5 border rounded-xl text-xs bg-slate-50 focus:outline-none" required />
+            </div>
+            <button type="submit" class="w-full bg-emerald-700 hover:bg-emerald-600 text-white font-extrabold py-3 rounded-xl text-xs transition shadow-md">Masuk Sekarang 🚀</button>
+            
+            <p class="text-center text-[11px] text-slate-500 pt-2">
+              Belum punya akun? 
+              <button type="button" onclick="AppState.authTab = 'register'; renderAuthModalContent();" class="text-emerald-700 font-bold hover:underline">Daftar Akun Baru</button>
+            </p>
+          </form>
+        `;
+      } else if (isRegister) {
+        authContent.innerHTML = `
+          ${tabsHtml}
+          <form onsubmit="handleRegisterSubmit(event)" class="space-y-3 max-h-[350px] overflow-y-auto pr-1">
+            <div>
+              <label class="block text-[10px] font-bold text-slate-500 uppercase mb-1">Nama Lengkap *</label>
+              <input type="text" id="reg-name" placeholder="Nama asli sesuai KTP" class="w-full px-3.5 py-2 border rounded-xl text-xs bg-slate-50 focus:outline-none" required />
+            </div>
+            <div class="grid grid-cols-2 gap-2">
+              <div>
+                <label class="block text-[10px] font-bold text-slate-500 uppercase mb-1">Pilih Tower *</label>
+                <select id="reg-tower" class="w-full px-2 py-2 border rounded-xl text-xs bg-white">
+                  <option value="Menara Samawa">Menara Samawa</option>
+                  <option value="Menara Swasana">Menara Swasana</option>
+                </select>
+              </div>
+              <div>
+                <label class="block text-[10px] font-bold text-slate-500 uppercase mb-1">Unit (4 Digit) *</label>
+                <input type="text" id="reg-unit" maxLength="4" placeholder="Contoh: 1405" class="w-full px-3.5 py-1.5 border rounded-xl text-xs bg-slate-50 focus:outline-none" required />
+              </div>
+            </div>
+            <div>
+              <label class="block text-[10px] font-bold text-slate-500 uppercase mb-1">Nomor WhatsApp *</label>
+              <input type="text" id="reg-phone" placeholder="Contoh: 08123456000" class="w-full px-3.5 py-2 border rounded-xl text-xs bg-slate-50 focus:outline-none" required />
+            </div>
+            <div>
+              <label class="block text-[10px] font-bold text-slate-500 uppercase mb-1">Sandi Masuk *</label>
+              <input type="password" id="reg-password" placeholder="Sandi baru Anda" class="w-full px-3.5 py-2 border rounded-xl text-xs bg-slate-50 focus:outline-none" required />
+            </div>
+            
+            <div class="border-t pt-2 mt-2 space-y-2">
+              <p class="text-[9px] font-bold text-emerald-800 uppercase">🛡️ Konfigurasi Pemulihan Sandi</p>
+              <div>
+                <label class="block text-[10px] font-bold text-slate-500 uppercase mb-1">Pertanyaan Keamanan *</label>
+                <select id="reg-question" class="w-full px-2 py-1.5 border rounded-xl text-xs bg-white">
+                  ${SECURITY_QUESTIONS.map(q => `<option value="${q}">${q}</option>`).join("")}
+                </select>
+              </div>
+              <div>
+                <label class="block text-[10px] font-bold text-slate-500 uppercase mb-1">Jawaban Rahasia *</label>
+                <input type="text" id="reg-answer" placeholder="Tuliskan jawaban pengingat..." class="w-full px-3.5 py-2 border rounded-xl text-xs bg-slate-50 focus:outline-none" required />
+              </div>
+            </div>
+            <button type="submit" class="w-full bg-emerald-700 hover:bg-emerald-600 text-white font-extrabold py-3 rounded-xl text-xs transition shadow-md">Daftar Akun Baru ✨</button>
+          </form>
+        `;
+      } else if (isForgot) {
+        let innerForgotHTML = "";
+        if (AppState.forgotStep === 1) {
+          innerForgotHTML = `
+            <form onsubmit="handleForgotSearchAction(event)" class="space-y-3">
+              <p class="text-[11px] text-slate-500 font-light">Masukkan nomor WhatsApp Anda untuk mencocokkan pertanyaan keamanan.</p>
+              <input type="text" id="forgot-phone-input" placeholder="08123456000" class="w-full px-3 py-2 border rounded-xl text-xs focus:outline-none" required />
+              <button type="submit" class="w-full bg-emerald-700 text-white font-bold py-2.5 rounded-xl text-xs shadow-md">Cari Akun 🔍</button>
+            </form>
+          `;
+        } else if (AppState.forgotStep === 2 && AppState.forgotUserFound) {
+          innerForgotHTML = `
+            <form onsubmit="handleForgotVerifyAnswerAction(event)" class="space-y-3">
+              <div class="p-3 bg-emerald-50 rounded-xl border text-xs">
+                <span class="font-bold text-emerald-800 block mb-1">Pertanyaan Anda:</span>
+                <span>"${AppState.forgotUserFound.securityQuestion}"</span>
+              </div>
+              <input type="text" id="forgot-answer-input" placeholder="Masukkan jawaban..." class="w-full px-3 py-2 border rounded-xl text-xs focus:outline-none" required />
+              <button type="submit" class="w-full bg-emerald-700 text-white font-bold py-2.5 rounded-xl text-xs shadow-md">Kirim Jawaban ✅</button>
+            </form>
+          `;
+        } else if (AppState.forgotStep === 3) {
+          innerForgotHTML = `
+            <form onsubmit="handleForgotResetPassAction(event)" class="space-y-3">
+              <p class="text-[11px] text-emerald-800 font-bold">✓ Terverifikasi! Buat sandi baru.</p>
+              <input type="password" id="forgot-new-pass-input" placeholder="Sandi baru..." class="w-full px-3 py-2 border rounded-xl text-xs focus:outline-none" required />
+              <button type="submit" class="w-full bg-amber-500 text-slate-900 font-extrabold py-2.5 rounded-xl text-xs shadow-md">Simpan Sandi 💾</button>
+            </form>
+          `;
+        }
+
+        authContent.innerHTML = `
+          <div class="space-y-4">
+            <div class="flex justify-between items-center pb-2 border-b">
+              <h4 class="font-extrabold text-xs text-rose-800 uppercase">Pemulihan Akun</h4>
+              <button type="button" onclick="AppState.authTab = 'login'; renderAuthModalContent();" class="text-xs text-emerald-700 font-bold hover:underline">Kembali Login</button>
+            </div>
+            ${innerForgotHTML}
+          </div>
+        `;
+      }
+    };
+
+    // Event Global untuk Pemulihan Lupa Sandi
+    window.handleForgotSearchAction = function(e) {
+      e.preventDefault();
+      const phone = document.getElementById("forgot-phone-input").value;
+      const user = AppState.users.find(u => u.phone === phone);
+      if (user) {
+        AppState.forgotUserFound = user;
+        AppState.forgotStep = 2;
+        renderAuthModalContent();
+      } else {
+        showToast("❌ Nomor WhatsApp tidak terdaftar!");
+      }
+    };
+
+    window.handleForgotVerifyAnswerAction = function(e) {
+      e.preventDefault();
+      const answer = document.getElementById("forgot-answer-input").value;
+      if (AppState.forgotUserFound.securityAnswer === answer.toLowerCase().trim()) {
+        AppState.forgotStep = 3;
+        renderAuthModalContent();
+      } else {
+        showToast("❌ Jawaban keamanan salah!");
+      }
+    };
+
+    window.handleForgotResetPassAction = function(e) {
+      e.preventDefault();
+      const newPass = document.getElementById("forgot-new-pass-input").value;
+      if (newPass) {
+        AppState.users = AppState.users.map(u => {
+          if (u.id === AppState.forgotUserFound.id) {
+            const updatedUser = { ...u, password: newPass };
+            if (db) {
+              setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'users', u.id), updatedUser)
+                .catch(err => console.log("Gagal memperbarui sandi online."));
+            }
+            return updatedUser;
+          }
+          return u;
+        });
+        showToast("🎉 Sukses mengubah kata sandi! Silakan masuk kembali.");
+        AppState.forgotPhone = "";
+        AppState.forgotUserFound = null;
+        AppState.forgotStep = 1;
+        AppState.authTab = "login";
+        renderAuthModalContent();
+      }
+    };
+
+    // Rendering Pertama Kali setelah File siap
+    window.onload = function() {
+      renderApp();
+    };
+
+  </script>
+
+  <!-- ================= NOTIFIKASI TOAST DITAMPILKAN DISINI ================= -->
+  <div id="toast-alert" class="fixed top-5 left-1/2 transform -translate-x-1/2 z-50 hidden"></div>
+
+  <!-- ================= MODAL 1: AUTENTIKASI (LOGIN & DAFTAR) ================= -->
+  <div id="auth-modal" class="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 hidden items-center justify-center p-4">
+    <div class="bg-white rounded-3xl shadow-2xl w-full max-w-sm overflow-hidden animate-zoom-in">
+      <div class="bg-emerald-950 text-white px-6 py-4 flex justify-between items-center border-b border-emerald-900">
+        <span class="font-extrabold text-sm tracking-tight">Otentikasi Warga Nuansa</span>
+        <button onclick="closeAuthModal()" class="text-white hover:text-slate-200">✕</button>
+      </div>
+      <div id="auth-modal-body" class="p-6"></div>
+    </div>
+  </div>
+
+  <!-- ================= MODAL 2: PERINGATAN AKSES TAMU ================= -->
+  <div id="guest-warning-modal" class="fixed inset-0 bg-black/75 backdrop-blur-sm z-50 hidden items-center justify-center p-4">
+    <div class="bg-white rounded-3xl shadow-xl w-full max-w-sm text-center p-6 space-y-4">
+      <span class="text-4xl">🔑</span>
+      <h3 class="font-extrabold text-slate-900 text-base">Butuh Verifikasi Warga</h3>
+      <p class="text-xs text-slate-500 leading-relaxed font-light">
+        Anda mencoba untuk melakukan: <br>
+        <strong id="guest-warning-action" class="text-emerald-800"></strong>. <br>
+        Demi keamanan warga <strong>Nuansa Pondok Kelapa</strong>, fitur ini memerlukan akun terdaftar.
+      </p>
+      <div class="flex flex-col gap-2 pt-1">
+        <button onclick="closeGuestWarningModal(); openAuthModal('register')" class="w-full bg-emerald-700 hover:bg-emerald-600 text-white font-extrabold py-3 rounded-xl text-xs transition shadow-md">📝 Daftar Akun Warga Baru</button>
+        <button onclick="closeGuestWarningModal(); openAuthModal('login')" class="w-full bg-slate-100 hover:bg-slate-200 text-slate-750 font-bold py-2.5 rounded-xl text-xs transition border">🔐 Masuk / Login</button>
+        <button onclick="closeGuestWarningModal()" class="text-slate-400 font-bold text-[10px] underline">Kembali Melihat Beranda</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ================= MODAL 3: DONASI QRIS DUKUNGAN ================= -->
+  <div id="qris-donation-modal" class="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 hidden items-center justify-center p-4">
+    <div class="bg-white rounded-3xl shadow-2xl w-full max-w-sm text-center p-6 space-y-4 border border-slate-200 animate-zoom-in">
+      <div class="flex justify-between items-center pb-2 border-b">
+        <div class="text-left">
+          <h4 class="font-extrabold text-xs tracking-wider text-emerald-800 uppercase">QRIS Dukungan Server</h4>
+          <p class="text-[10px] text-slate-400">Atas nama: Seblak iZZi / NuansaHub</p>
+        </div>
+        <button onclick="closeQRISModal()" class="text-slate-400 font-bold hover:text-slate-700">✕</button>
+      </div>
+      <div class="bg-slate-50 border rounded-2xl p-4 flex flex-col items-center">
+        <p class="text-base font-black text-slate-800">Dukungan Server NuansaHub</p>
+        <div class="bg-white p-2.5 rounded-xl border my-3 shadow-inner max-w-[210px]">
+          <!-- Menggunakan placeholder SVG transparan agar tidak memicu error load sebelum diinisialisasi secara dinamis -->
+          <img src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 1 1'%3E%3C/svg%3E" id="qris-image-view" class="w-full h-auto object-contain cursor-zoom-in" onclick="openFullPhotoModal(this.src, 'QRIS Server')" alt="QRIS Dukungan" />
+        </div>
+        <p class="text-[10px] text-slate-400">Klik gambar QRIS untuk memperbesar secara penuh.</p>
+      </div>
+      <button onclick="closeQRISModal()" class="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold py-3 rounded-xl text-xs transition shadow-md">Saya Sudah Selesai Scan 🚀</button>
+    </div>
+  </div>
+
+  <!-- ================= MODAL 4: PASANG LOWONGAN KERJAAN BARU ================= -->
+  <div id="job-creation-modal" class="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 hidden items-center justify-center p-4">
+    <div class="bg-white rounded-3xl shadow-xl w-full max-w-sm overflow-hidden animate-zoom-in">
+      <div class="bg-emerald-950 text-white px-5 py-3.5 flex justify-between items-center text-xs">
+        <span class="font-bold">Pasang Lowongan Tugas Baru</span>
+        <button onclick="document.getElementById('job-creation-modal').style.display='none'">✕</button>
+      </div>
+      <form onsubmit="handleCreateJobSubmit(event)" class="p-5 space-y-3.5 text-xs">
+        <div>
+          <label class="block text-[9px] font-bold text-slate-500 uppercase mb-0.5">Judul Pekerjaan *</label>
+          <input type="text" id="new-job-title" placeholder="Contoh: Bantu Jemput Anak Sekolah" class="w-full px-3 py-2 border rounded-lg focus:outline-none" required />
+        </div>
+        <div class="grid grid-cols-2 gap-3">
+          <div>
+            <label class="block text-[9px] font-bold text-slate-500 uppercase mb-0.5">Kategori *</label>
+            <select id="new-job-category" class="w-full px-2 py-1.5 border rounded-lg bg-white focus:outline-none">
+              <option value="Serabutan">🔨 Serabutan</option>
+              <option value="Profesional">👔 Profesional</option>
+              <option value="Info Loker">📢 Info Loker</option>
+            </select>
+          </div>
+          <div>
+            <label class="block text-[9px] font-bold text-slate-500 uppercase mb-0.5">Upah (Rp) *</label>
+            <input type="number" id="new-job-budget" placeholder="50000" class="w-full px-3 py-1.5 border rounded-lg focus:outline-none" required />
+          </div>
+        </div>
+        <div>
+          <label class="block text-[9px] font-bold text-slate-500 uppercase mb-0.5">Deskripsi Tugas *</label>
+          <textarea id="new-job-desc" rows="3" placeholder="Terangkan kriteria tugas Anda..." class="w-full px-3 py-2 border rounded-lg focus:outline-none" required></textarea>
+        </div>
+        <button type="submit" class="w-full bg-emerald-700 hover:bg-emerald-600 text-white font-bold py-2.5 rounded-lg transition shadow-md">Tayangkan Lowongan 🚀</button>
+      </form>
+    </div>
+  </div>
+
+  <!-- ================= MODAL 5: PASANG PENAWARAN JASA BARU ================= -->
+  <div id="talent-creation-modal" class="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 hidden items-center justify-center p-4">
+    <div class="bg-white rounded-2xl shadow-2xl w-full max-w-sm overflow-hidden animate-zoom-in">
+      <div class="bg-emerald-950 text-white px-5 py-3 flex justify-between items-center text-xs">
+        <span class="font-bold">Tawarkan Keahlian Anda</span>
+        <button onclick="document.getElementById('talent-creation-modal').style.display='none'">✕</button>
+      </div>
+      <form onsubmit="handleCreateTalentSubmit(event)" class="p-5 space-y-3.5 text-xs">
+        <div>
+          <label class="block text-[9px] font-bold text-slate-500 uppercase mb-0.5">Keahlian Jasa *</label>
+          <input type="text" id="new-talent-skill" placeholder="Contoh: Servis AC, Antar Air Galon" class="w-full px-3 py-2 border rounded-lg focus:outline-none" required />
+        </div>
+        <div>
+          <label class="block text-[9px] font-bold text-slate-500 uppercase mb-0.5">Keterangan Jasa *</label>
+          <textarea id="new-talent-desc" rows="4" placeholder="Jelaskan mengenai detail keahlian, hari aktif, tarif perkiraan..." class="w-full px-3 py-2 border rounded-lg focus:outline-none" required></textarea>
+        </div>
+        <button type="submit" class="w-full bg-emerald-700 hover:bg-emerald-600 text-white font-bold py-2.5 rounded-lg transition shadow-md">Daftarkan Jasa 📢</button>
+      </form>
+    </div>
+  </div>
+
+  <!-- ================= MODAL 6: TAMPILAN LIHAT FOTO UTUH / LEBIH BESAR ================= -->
+  <div id="full-photo-modal" class="fixed inset-0 bg-black/90 backdrop-blur-sm z-[60] hidden items-center justify-center p-4">
+    <div class="relative max-w-lg w-full flex flex-col items-center">
+      <button onclick="closeFullPhotoModal()" class="absolute -top-10 right-0 text-white text-3xl font-light hover:text-slate-300">✕</button>
+      <h4 id="full-photo-title" class="text-white text-xs font-bold tracking-wide mb-3 bg-emerald-950/80 px-4 py-1.5 rounded-full">Foto Lengkap</h4>
+      <div class="bg-white p-2 rounded-2xl max-h-[80vh] overflow-hidden flex items-center justify-center shadow-2xl">
+        <img id="full-photo-img" src="" class="max-w-full max-h-[70vh] object-contain rounded-xl shadow-inner" alt="Foto Lengkap" />
+      </div>
+    </div>
+  </div>
+
+</body>
+</html>
