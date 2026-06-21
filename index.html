@@ -150,13 +150,21 @@
       "Apa warna mobil/motor pertama Anda?"
     ];
 
+    // --- DATA REKBER SAMAWA/SWASANA ---
+    const REKBER_ACCOUNTS = [
+      { bank: "BCA", number: "2721651357", holder: "Ahmad Nandar Suryadi" },
+      { bank: "DKI / JAKARTA", number: "42223601490", holder: "Ahmad Nandar Suryadi" },
+      { bank: "SEABANK", number: "901120193202", holder: "Ahmad Nandar Suryadi" }
+    ];
+    const REKBER_ADMIN_FEE = 2500;
+
     // State Aplikasi Global dengan Data Mock Awal (Lokal)
     window.AppState = {
       users: [
-        { id: "u-admin", name: "edhos", tower: "Menara Samawa", unit: "Menara Samawa - 0102", phone: "082220691212", password: "admin", role: "admin", verified: true, points: 999, avatar: PRESET_AVATARS[0], securityQuestion: SECURITY_QUESTIONS[0], securityAnswer: "sd pondok kelapa" },
-        { id: "u-1", name: "Budi Santoso", tower: "Menara Swasana", unit: "Menara Swasana - 1405", phone: "08123456000", password: "warga", role: "warga", verified: true, points: 120, avatar: PRESET_AVATARS[2], securityQuestion: SECURITY_QUESTIONS[1], securityAnswer: "kucing" },
-        { id: "u-2", name: "Ibu Desi", tower: "Menara Samawa", unit: "Menara Samawa - 0309", phone: "08111222333", password: "warga", role: "warga", verified: true, points: 45, avatar: PRESET_AVATARS[3], securityQuestion: SECURITY_QUESTIONS[2], securityAnswer: "jakarta" },
-        { id: "u-3", name: "Rian Hidayat", tower: "Menara Samawa", unit: "Menara Samawa - 1205", phone: "08123456789", password: "warga", role: "warga", verified: true, points: 80, avatar: PRESET_AVATARS[4], securityQuestion: SECURITY_QUESTIONS[3], securityAnswer: "hitam" }
+        { id: "u-admin", name: "edhos", tower: "Menara Samawa", unit: "Menara Samawa - 0102", phone: "082220691212", password: "admin", role: "admin", verified: true, points: 999, avatar: PRESET_AVATARS[0], securityQuestion: SECURITY_QUESTIONS[0], securityAnswer: "sd pondok kelapa", workerBankName: "BCA", workerBankNumber: "2721651357", workerBankOwner: "Ahmad Nandar Suryadi" },
+        { id: "u-1", name: "Budi Santoso", tower: "Menara Swasana", unit: "Menara Swasana - 1405", phone: "08123456000", password: "warga", role: "warga", verified: true, points: 120, avatar: PRESET_AVATARS[2], securityQuestion: SECURITY_QUESTIONS[1], securityAnswer: "kucing", workerBankName: "Mandiri", workerBankNumber: "123456789", workerBankOwner: "Budi Santoso" },
+        { id: "u-2", name: "Ibu Desi", tower: "Menara Samawa", unit: "Menara Samawa - 0309", phone: "08111222333", password: "warga", role: "warga", verified: true, points: 45, avatar: PRESET_AVATARS[3], securityQuestion: SECURITY_QUESTIONS[2], securityAnswer: "jakarta", workerBankName: "BCA", workerBankNumber: "987654321", workerBankOwner: "Desi Amalia" },
+        { id: "u-3", name: "Rian Hidayat", tower: "Menara Samawa", unit: "Menara Samawa - 1205", phone: "08123456789", password: "warga", role: "warga", verified: true, points: 80, avatar: PRESET_AVATARS[4], securityQuestion: SECURITY_QUESTIONS[3], securityAnswer: "hitam", workerBankName: "DKI", workerBankNumber: "456123789", workerBankOwner: "Rian Hidayat" }
       ],
       jobs: [
         { id: "job-1", title: "Bantu Pindahan Sofa & Meja ke Lantai 15", category: "Serabutan", budget: 150000, posterId: "u-3", description: "Minta tolong 2 orang berbadan sehat untuk angkat sofa lipat dan meja makan dari lobi Menara Samawa ke unit kami di lantai 12. Estimasi pengerjaan cepat sekitar 1 jam saja.", createdAt: "2 jam lalu", status: "Aktif", workerId: null },
@@ -197,7 +205,10 @@
       editPhone: "",
       editPassword: "",
       editQuestion: "",
-      editAnswer: ""
+      editAnswer: "",
+      editWorkerBankName: "",
+      editWorkerBankNumber: "",
+      editWorkerBankOwner: ""
     };
 
     // Fungsi Pembantu Pencari Informasi Pembuat (Global Scope)
@@ -419,6 +430,9 @@
           AppState.editQuestion = currentUserData.securityQuestion || SECURITY_QUESTIONS[0];
           AppState.editAnswer = currentUserData.securityAnswer || "";
           AppState.editAvatar = currentUserData.avatar;
+          AppState.editWorkerBankName = currentUserData.workerBankName || "";
+          AppState.editWorkerBankNumber = currentUserData.workerBankNumber || "";
+          AppState.editWorkerBankOwner = currentUserData.workerBankOwner || "";
         }
       }
       renderApp();
@@ -487,7 +501,10 @@
         points: 10,
         avatar: PRESET_AVATARS[Math.floor(Math.random() * PRESET_AVATARS.length)],
         securityQuestion: question,
-        securityAnswer: answer.toLowerCase().trim()
+        securityAnswer: answer.toLowerCase().trim(),
+        workerBankName: "",
+        workerBankNumber: "",
+        workerBankOwner: ""
       };
 
       AppState.users.push(newUser);
@@ -613,7 +630,7 @@
       }
     };
 
-    // Simpan Perubahan Profil Warga
+    // Simpan Perubahan Profil Warga (Termasuk Rekening/E-Wallet Payout)
     window.handleSaveProfileSubmit = function(e) {
       e.preventDefault();
       const name = document.getElementById("edit-name").value;
@@ -621,6 +638,9 @@
       const pass = document.getElementById("edit-password").value;
       const question = document.getElementById("edit-question").value;
       const answer = document.getElementById("edit-answer").value;
+      const bankName = document.getElementById("edit-bank-name").value;
+      const bankNumber = document.getElementById("edit-bank-number").value;
+      const bankOwner = document.getElementById("edit-bank-owner").value;
 
       AppState.users = AppState.users.map(u => {
         if (u.id === AppState.currentUserId) {
@@ -631,7 +651,10 @@
             password: pass,
             avatar: AppState.editAvatar || u.avatar,
             securityQuestion: question,
-            securityAnswer: answer.toLowerCase().trim()
+            securityAnswer: answer.toLowerCase().trim(),
+            workerBankName: bankName,
+            workerBankNumber: bankNumber,
+            workerBankOwner: bankOwner
           };
           if (db) {
             setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'users', u.id), updated)
@@ -642,7 +665,7 @@
         return u;
       });
 
-      showToast("🌟 Perubahan profil berhasil disimpan!");
+      showToast("🌟 Perubahan profil & rekening berhasil disimpan!");
       renderApp();
     };
 
@@ -686,7 +709,7 @@
           jobId: jobId,
           parties: [AppState.currentUserId, receiverId],
           messages: [
-            { senderId: "system", text: `💬 Ruang obrolan dimulai untuk: "${jobTitle}". Diskusikan rincian upah atau pengerjaan secara kekeluargaan.`, time: "Sistem" }
+            { senderId: "system", text: `💬 Ruang obrolan dimulai untuk: "${jobTitle}". Saling sepakati detail kerja terlebih dahulu sebelum melanjutkan ke Rekening Bersama (Rekber) demi keamanan upah.`, time: "Sistem" }
           ]
         };
         AppState.chats.push(newChat);
@@ -740,15 +763,18 @@
       renderApp();
     };
 
-    // Menyepakati Pekerjaan
+    // --- ESCROW ALUR KESEPAKATAN REKBER ---
+
+    // 1. Tombol 'Sepakati' ditekan -> Poster & Pekerja setuju. Status Loker: 'Menunggu Transfer Poster'
     window.markJobAsAgreed = function(chatId) {
       const chat = AppState.chats.find(c => c.id === chatId);
       if (!chat || !chat.jobId) return;
 
-      // Update status pekerjaan lokal & cloud
+      const workerId = chat.parties.find(p => p !== getJobPosterId(chat.jobId));
+      
       AppState.jobs = AppState.jobs.map(j => {
         if (j.id === chat.jobId) {
-          const updatedJob = { ...j, status: "Dikerjakan", workerId: chat.parties.find(p => p !== j.posterId) };
+          const updatedJob = { ...j, status: "Menunggu Transfer Poster", workerId: workerId };
           if (db) {
             setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'jobs', j.id), updatedJob)
               .catch(e => console.log("Gagal update pekerjaan di cloud."));
@@ -758,44 +784,178 @@
         return j;
       });
 
-      // Tambahkan pesan sistem ke chat lokal & cloud
       chat.messages.push({
         senderId: "system",
-        text: `🤝 Pekerjaan telah DISEPAKATI bersama! Pekerja sedang memproses tugas.`,
+        text: `🤝 Kesepakatan tercapai! Pemberi kerja diwajibkan melakukan transfer ke salah satu rekening pengelola/admin (Ahmad Nandar Suryadi) untuk mengamankan pembayaran upah.`,
         time: "Sistem"
       });
 
       if (db) {
         setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'chats', chatId), chat)
-          .catch(e => console.log("Gagal kirim pesan sistem kesepakatan ke cloud."));
+          .catch(e => console.log("Gagal kirim pesan kesepakatan ke cloud."));
       }
 
-      showToast("🤝 Pekerjaan berhasil disepakati!");
+      showToast("🤝 Pekerjaan disepakati! Menunggu pembayaran.");
       renderApp();
     };
 
-    // Menyelesaikan Pekerjaan (+ Menambah Poin Gotong Royong)
-    window.markJobAsFinished = function(chatId) {
+    // Helper pencari id pembuat lowongan
+    function getJobPosterId(jobId) {
+      const job = AppState.jobs.find(j => j.id === jobId);
+      return job ? job.posterId : "";
+    }
+
+    // 2. Poster Mengonfirmasi sudah transfer dana ke Rekber. Status Loker: 'Menunggu Verifikasi Admin'
+    window.confirmPaymentToRekber = function(chatId) {
       const chat = AppState.chats.find(c => c.id === chatId);
       if (!chat || !chat.jobId) return;
 
-      // Update status pekerjaan menjadi Selesai
       AppState.jobs = AppState.jobs.map(j => {
         if (j.id === chat.jobId) {
-          const updatedJob = { ...j, status: "Selesai" };
+          const updatedJob = { ...j, status: "Menunggu Verifikasi Admin" };
           if (db) {
             setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'jobs', j.id), updatedJob)
-              .catch(e => console.log("Gagal update pekerjaan selesai di cloud."));
+              .catch(e => console.log("Gagal update pekerjaan di cloud."));
           }
           return updatedJob;
         }
         return j;
       });
 
-      // Berikan bonus +25 Poin ke Pekerja
-      const workerId = chat.parties.find(p => p !== AppState.currentUserId);
+      chat.messages.push({
+        senderId: "system",
+        text: `💰 Pemberi Kerja mengonfirmasi telah melakukan transfer ke rekening pengelola. Menunggu Admin Ahmad Nandar Suryadi memverifikasi dana masuk.`,
+        time: "Sistem"
+      });
+
+      if (db) {
+        setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'chats', chatId), chat)
+          .catch(e => console.log("Gagal kirim pesan transfer ke cloud."));
+      }
+
+      showToast("💰 Konfirmasi pembayaran terkirim ke Admin.");
+      renderApp();
+    };
+
+    // 3. Admin Memverifikasi Pembayaran Rekber. Status Loker: 'Dana Ditahan (Mulai Kerja)'
+    window.verifyRekberPaymentByAdmin = function(jobId) {
+      const job = AppState.jobs.find(j => j.id === jobId);
+      if (!job) return;
+
+      AppState.jobs = AppState.jobs.map(j => {
+        if (j.id === jobId) {
+          const updatedJob = { ...j, status: "Dana Ditahan (Mulai Kerja)" };
+          if (db) {
+            setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'jobs', j.id), updatedJob)
+              .catch(e => console.log("Gagal update pekerjaan di cloud."));
+          }
+          return updatedJob;
+        }
+        return j;
+      });
+
+      // Cari obrolan terkait pekerjaan ini untuk mengirim pesan sistem
+      const relatedChat = AppState.chats.find(c => c.jobId === jobId);
+      if (relatedChat) {
+        relatedChat.messages.push({
+          senderId: "system",
+          text: `🛡️ PEMBAYARAN REKBER TERVERIFIKASI! Dana sebesar Rp ${(job.budget).toLocaleString('id-ID')} sudah aman ditahan oleh Admin Ahmad Nandar Suryadi. Pekerja dipersilakan memulai tugas.`,
+          time: "Sistem"
+        });
+        if (db) {
+          setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'chats', relatedChat.id), relatedChat)
+            .catch(e => console.log("Gagal kirim pesan ke cloud."));
+        }
+      }
+
+      showToast("🛡️ Dana terverifikasi & ditahan! Status: Muli Kerja.");
+      renderApp();
+    };
+
+    // 4. Pekerja Melaporkan Tugas telah Selesai. Status Loker: 'Menunggu Lepas Dana'
+    window.reportJobFinishedByWorker = function(chatId) {
+      const chat = AppState.chats.find(c => c.id === chatId);
+      if (!chat || !chat.jobId) return;
+
+      AppState.jobs = AppState.jobs.map(j => {
+        if (j.id === chat.jobId) {
+          const updatedJob = { ...j, status: "Menunggu Lepas Dana" };
+          if (db) {
+            setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'jobs', j.id), updatedJob)
+              .catch(e => console.log("Gagal update pekerjaan di cloud."));
+          }
+          return updatedJob;
+        }
+        return j;
+      });
+
+      chat.messages.push({
+        senderId: "system",
+        text: `🏁 Pekerja melaporkan tugas telah selesai sepenuhnya. Menunggu Pemberi Kerja memeriksa hasil dan melepas dana upah.`,
+        time: "Sistem"
+      });
+
+      if (db) {
+        setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'chats', chatId), chat)
+          .catch(e => console.log("Gagal kirim pesan ke cloud."));
+      }
+
+      showToast("🏁 Tugas dilaporkan selesai. Menunggu konfirmasi.");
+      renderApp();
+    };
+
+    // 5. Poster mengizinkan pelepasan dana. Status Loker: 'Dana Siap Cair'
+    window.releaseEscrowToWorker = function(chatId) {
+      const chat = AppState.chats.find(c => c.id === chatId);
+      if (!chat || !chat.jobId) return;
+
+      AppState.jobs = AppState.jobs.map(j => {
+        if (j.id === chat.jobId) {
+          const updatedJob = { ...j, status: "Dana Siap Cair" };
+          if (db) {
+            setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'jobs', j.id), updatedJob)
+              .catch(e => console.log("Gagal update pekerjaan di cloud."));
+          }
+          return updatedJob;
+        }
+        return j;
+      });
+
+      chat.messages.push({
+        senderId: "system",
+        text: `🔓 Pemberi Kerja menyetujui hasil tugas & melepas dana Rekber. Menunggu Admin mencairkan upah langsung ke rekening terdaftar Pekerja.`,
+        time: "Sistem"
+      });
+
+      if (db) {
+        setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'chats', chatId), chat)
+          .catch(e => console.log("Gagal kirim pesan ke cloud."));
+      }
+
+      showToast("🔓 Dana dilepas! Sedang diproses pencairan oleh Admin.");
+      renderApp();
+    };
+
+    // 6. Admin Mentransfer dan Menyelesaikan Transaksi secara Penuh. Status Loker: 'Selesai & Cair'
+    window.payoutWorkerByAdmin = function(jobId) {
+      const job = AppState.jobs.find(j => j.id === jobId);
+      if (!job) return;
+
+      AppState.jobs = AppState.jobs.map(j => {
+        if (j.id === jobId) {
+          const updatedJob = { ...j, status: "Selesai & Cair" };
+          if (db) {
+            setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'jobs', j.id), updatedJob)
+              .catch(e => console.log("Gagal update pekerjaan di cloud."));
+          }
+          return updatedJob;
+        }
+        return j;
+      });
+
+      // Bonus Poin Gotong Royong ke Pekerja
       AppState.users = AppState.users.map(u => {
-        if (u.id === workerId) {
+        if (u.id === job.workerId) {
           const updatedUser = { ...u, points: (u.points || 0) + 25 };
           if (db) {
             setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'users', u.id), updatedUser)
@@ -806,18 +966,20 @@
         return u;
       });
 
-      chat.messages.push({
-        senderId: "system",
-        text: `🎉 Pekerjaan dinyatakan SELESAI! Pekerja menerima apresiasi +25 Poin Gotong Royong.`,
-        time: "Sistem"
-      });
-
-      if (db) {
-        setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'chats', chatId), chat)
-          .catch(e => console.log("Gagal kirim pesan sistem penyelesaian ke cloud."));
+      const relatedChat = AppState.chats.find(c => c.jobId === jobId);
+      if (relatedChat) {
+        relatedChat.messages.push({
+          senderId: "system",
+          text: `🎉 PENCAIRAN SELESAI! Admin Ahmad Nandar Suryadi telah sukses mentransfer upah bersih ke rekening Pekerja. Pekerja juga mendapatkan bonus +25 Poin Gotong Royong!`,
+          time: "Sistem"
+        });
+        if (db) {
+          setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'chats', relatedChat.id), relatedChat)
+            .catch(e => console.log("Gagal kirim pesan ke cloud."));
+        }
       }
 
-      showToast("🎉 Hebat! Tugas telah diselesaikan.");
+      showToast("🎉 Hebat! Upah berhasil dicairkan ke Pekerja.");
       renderApp();
     };
 
@@ -988,11 +1150,33 @@
                 </div>
               </div>
 
+              <!-- INFO REKBER BOX -->
+              <div class="bg-gradient-to-r from-emerald-800 to-teal-800 text-white rounded-3xl p-5 sm:p-6 shadow-md border border-emerald-700/50 flex flex-col sm:flex-row items-center justify-between gap-4">
+                <div class="space-y-1">
+                  <span class="bg-emerald-700 text-amber-300 text-[10px] font-black tracking-widest uppercase px-3 py-1 rounded-full border border-emerald-600">🛡️ Rekber Resmi Aktif</span>
+                  <h4 class="font-extrabold text-base sm:text-lg mt-2">Dukungan Transaksi Aman</h4>
+                  <p class="text-xs text-emerald-100 font-light max-w-xl">Kini setiap kesepakatan upah wajib melewati Rekber pengelola a.n Ahmad Nandar Suryadi. Pekerjaan baru dimulai setelah dana terkonfirmasi masuk oleh Admin!</p>
+                </div>
+                <div class="flex-shrink-0 bg-white/10 px-4 py-2.5 rounded-2xl text-center border border-white/10">
+                  <p class="text-[9px] uppercase tracking-wider text-emerald-200">Biaya Admin Rekber</p>
+                  <p class="text-lg font-black text-amber-300">Rp ${REKBER_ADMIN_FEE.toLocaleString('id-ID')}</p>
+                </div>
+              </div>
+
               <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
                 ${jobsFiltered.map(job => {
                   const poster = getPosterDetail(job.posterId);
                   const isMyOwnJob = job.posterId === AppState.currentUserId;
                   const isBtnDisabled = job.status !== 'Aktif';
+
+                  let statusBadgeStyle = "bg-amber-50 text-amber-800 border-amber-100";
+                  if (job.status === "Pembayaran Diverifikasi" || job.status === "Dana Ditahan (Mulai Kerja)") {
+                    statusBadgeStyle = "bg-emerald-50 text-emerald-800 border-emerald-100";
+                  } else if (job.status === "Selesai & Cair") {
+                    statusBadgeStyle = "bg-slate-100 text-slate-600 border-slate-200";
+                  } else if (job.status.startsWith("Menunggu") || job.status.startsWith("Dana Siap")) {
+                    statusBadgeStyle = "bg-sky-50 text-sky-800 border-sky-100";
+                  }
 
                   return `
                     <div class="bg-white rounded-3xl border border-slate-200 p-6 flex flex-col justify-between hover:shadow-lg transition-all duration-200">
@@ -1002,7 +1186,7 @@
                             ${job.category}
                           </span>
                           <div class="flex items-center gap-1.5">
-                            <span class="text-[10px] bg-amber-50 text-amber-800 px-3 py-1 rounded-full font-extrabold border border-amber-100">
+                            <span class="text-[10px] px-3 py-1 rounded-full font-extrabold border ${statusBadgeStyle}">
                               ⚡ ${job.status}
                             </span>
                             ${currentUserData?.role === 'admin' ? `
@@ -1169,15 +1353,104 @@
 
                     ${chatJob ? `
                       <div class="flex space-x-1.5">
-                        ${chatJob.status === 'Aktif' && chatJob.posterId === otherParty.id ? `
-                          <button onclick="markJobAsAgreed('${activeChat.id}')" class="bg-amber-500 hover:bg-amber-400 text-slate-950 font-black px-3 py-1.5 rounded-lg text-[9px] transition shadow-sm">🤝 Sepakati</button>
+                        <!-- 1. POSTER & PEKERJA DEAL (Kesepakatan) -->
+                        ${chatJob.status === 'Aktif' && chatJob.posterId === AppState.currentUserId ? `
+                          <button onclick="markJobAsAgreed('${activeChat.id}')" class="bg-amber-500 hover:bg-amber-400 text-slate-950 font-black px-3 py-1.5 rounded-lg text-[9px] transition shadow-sm">🤝 Sepakati Pekerjaan</button>
                         ` : ""}
-                        ${chatJob.status === 'Dikerjakan' && chatJob.posterId === AppState.currentUserId ? `
-                          <button onclick="markJobAsFinished('${activeChat.id}')" class="bg-emerald-600 hover:bg-emerald-700 text-white font-black px-3 py-1.5 rounded-lg text-[9px] transition shadow-sm">✅ Selesai</button>
+
+                        <!-- 2. PEMBAYARAN KABAR SUDAH DI-TRANSFER OLEH POSTER -->
+                        ${chatJob.status === 'Menunggu Transfer Poster' && chatJob.posterId === AppState.currentUserId ? `
+                          <button onclick="confirmPaymentToRekber('${activeChat.id}')" class="bg-blue-600 hover:bg-blue-500 text-white font-black px-3 py-1.5 rounded-lg text-[9px] transition shadow-sm">💰 Saya Sudah Transfer</button>
+                        ` : ""}
+
+                        <!-- 3. PEKERJA MELAPORKAN PEKERJAAN TELAH SELESAI -->
+                        ${chatJob.status === 'Dana Ditahan (Mulai Kerja)' && chatJob.workerId === AppState.currentUserId ? `
+                          <button onclick="reportJobFinishedByWorker('${activeChat.id}')" class="bg-indigo-600 hover:bg-indigo-500 text-white font-black px-3 py-1.5 rounded-lg text-[9px] transition shadow-sm">🏁 Laporkan Selesai</button>
+                        ` : ""}
+
+                        <!-- 4. POSTER MELEPAS DANA REKBER KE PEKERJA -->
+                        ${chatJob.status === 'Menunggu Lepas Dana' && chatJob.posterId === AppState.currentUserId ? `
+                          <button onclick="releaseEscrowToWorker('${activeChat.id}')" class="bg-emerald-600 hover:bg-emerald-700 text-white font-black px-3 py-1.5 rounded-lg text-[9px] transition shadow-sm">🔓 Konfirmasi & Lepas Dana</button>
                         ` : ""}
                       </div>
                     ` : ""}
                   </div>
+
+                  <!-- AREA ESCROW DETAIL DI ATAS CHAT (JIKA ADA KERJAAN) -->
+                  ${chatJob && chatJob.status !== 'Aktif' ? `
+                    <div class="p-4 bg-amber-50 border-b border-amber-200 text-xs text-amber-900 space-y-2">
+                      <div class="flex justify-between items-center">
+                        <span class="font-extrabold">🛡️ Alur Pembayaran Rekber Aman:</span>
+                        <span class="bg-amber-200 text-amber-900 font-extrabold px-2 py-0.5 rounded-full text-[9px] tracking-wide uppercase">${chatJob.status}</span>
+                      </div>
+                      
+                      <!-- FLOW MENUNGGU TRANSFER POSTER -->
+                      ${chatJob.status === 'Menunggu Transfer Poster' ? `
+                        <div class="bg-white p-3.5 rounded-2xl border border-amber-200 space-y-3 shadow-inner">
+                          <p class="font-bold text-slate-800">Petunjuk Pembayaran Pemberi Kerja:</p>
+                          <p class="text-[11px] text-slate-600 leading-relaxed font-light">Transfer total tagihan di bawah ini ke salah satu rekening bank resmi pengelola **Ahmad Nandar Suryadi**:</p>
+                          
+                          <div class="grid grid-cols-1 sm:grid-cols-3 gap-2.5 pt-1 text-center font-mono text-[11px]">
+                            ${REKBER_ACCOUNTS.map(acc => `
+                              <div class="bg-slate-50 border p-2.5 rounded-xl">
+                                <span class="font-bold block text-slate-700 text-[10px]">${acc.bank}</span>
+                                <span class="text-emerald-700 font-black block my-1">${acc.number}</span>
+                                <span class="text-[9px] text-slate-400 leading-none">a.n ${acc.holder}</span>
+                              </div>
+                            `).join("")}
+                          </div>
+
+                          <div class="border-t pt-3 flex flex-row items-center justify-between text-xs font-bold text-slate-800">
+                            <div>
+                              <p class="font-normal text-slate-400 text-[10px]">Upah Pekerja: Rp ${chatJob.budget.toLocaleString('id-ID')}</p>
+                              <p class="font-normal text-slate-400 text-[10px]">Biaya Admin: Rp ${REKBER_ADMIN_FEE.toLocaleString('id-ID')}</p>
+                              <p class="text-emerald-700 mt-0.5">Total Transfer: Rp ${(chatJob.budget + REKBER_ADMIN_FEE).toLocaleString('id-ID')}</p>
+                            </div>
+                            ${chatJob.posterId === AppState.currentUserId ? `
+                              <button onclick="confirmPaymentToRekber('${activeChat.id}')" class="bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold px-4 py-2 rounded-xl text-[10px] transition shadow">Saya Sudah Kirim</button>
+                            ` : `<span class="text-slate-400 text-[10px] italic">Menunggu Poster mentransfer...</span>`}
+                          </div>
+                        </div>
+                      ` : ""}
+
+                      <!-- FLOW MENUNGGU VERIFIKASI ADMIN -->
+                      ${chatJob.status === 'Menunggu Verifikasi Admin' ? `
+                        <p class="text-[11px] text-slate-600 font-light">
+                          Pemberi kerja telah mengonfirmasi pembayaran. Dana sebesar **Rp ${(chatJob.budget + REKBER_ADMIN_FEE).toLocaleString('id-ID')}** sedang diproses cek mutasi oleh Admin. Pekerja harap tidak memulai pekerjaan sebelum status berubah menjadi **"Dana Ditahan (Mulai Kerja)"**.
+                        </p>
+                      ` : ""}
+
+                      <!-- FLOW DANA DITAHAN (MULAI KERJA) -->
+                      ${chatJob.status === 'Dana Ditahan (Mulai Kerja)' ? `
+                        <div class="bg-white p-3 rounded-xl border border-emerald-200">
+                          <p class="text-[11px] text-emerald-800 font-bold">✓ DANA AMAN DI REKBER!</p>
+                          <p class="text-[11px] text-slate-600 mt-1 font-light leading-relaxed">
+                            Dana upah Pekerja sudah aman dipegang oleh Admin. Pekerja silakan melakukan tugas dengan maksimal. Jika tugas selesai, Pekerja silakan klik tombol **"Laporkan Selesai"** di kanan atas obrolan.
+                          </p>
+                        </div>
+                      ` : ""}
+
+                      <!-- FLOW MENUNGGU LEPAS DANA -->
+                      ${chatJob.status === 'Menunggu Lepas Dana' ? `
+                        <div class="bg-white p-3 rounded-xl border border-amber-200 space-y-2">
+                          <p class="text-[11px] text-slate-800 font-bold">Tugas Dilaporkan Selesai oleh Pekerja:</p>
+                          <p class="text-[11px] text-slate-600 font-light leading-relaxed">
+                            Pemberi Kerja silakan memeriksa langsung unit / hasil kerja. Jika semua sudah oke, silakan lepas dana agar admin mentransfer upah langsung ke rekening Pekerja.
+                          </p>
+                          ${chatJob.posterId === AppState.currentUserId ? `
+                            <button onclick="releaseEscrowToWorker('${activeChat.id}')" class="bg-emerald-600 hover:bg-emerald-700 text-white font-bold px-4 py-1.5 rounded-lg text-[10px] transition shadow">Ya, Lepas Dana Sekarang</button>
+                          ` : ""}
+                        </div>
+                      ` : ""}
+
+                      <!-- FLOW DANA SIAP CAIR -->
+                      ${chatJob.status === 'Dana Siap Cair' ? `
+                        <p class="text-[11px] text-emerald-800 font-bold">
+                          ✓ Kesepakatan Selesai! Admin Ahmad Nandar Suryadi sedang mentransfer upah bersih sebesar **Rp ${chatJob.budget.toLocaleString('id-ID')}** ke nomor rekening Pekerja. Terima kasih atas kerja samanya!
+                        </p>
+                      ` : ""}
+                    </div>
+                  ` : ""}
 
                   <div class="flex-grow p-4 overflow-y-auto space-y-3 bg-slate-50/50 max-h-[350px]">
                     ${activeChat.messages.map(m => {
@@ -1286,6 +1559,27 @@
                   <input type="text" id="edit-password" value="${AppState.editPassword}" class="w-full px-3.5 py-2.5 border rounded-xl text-xs bg-slate-50 focus:outline-none" required />
                 </div>
 
+                <!-- FORM REKENING PENCAIRAN WAHIB UNTUK PEKERJA -->
+                <div class="border-t border-slate-100 pt-4 space-y-3">
+                  <h4 class="font-bold text-xs text-slate-700">💼 Rekening Bank / E-Wallet Pencairan Upah (Wajib diisi Pekerja)</h4>
+                  <p class="text-[11px] text-slate-400 font-light">Upah dari Rekber akan ditransfer oleh Admin ke rekening terdaftar di bawah ini saat pekerjaan dinyatakan selesai.</p>
+                  
+                  <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                    <div>
+                      <label class="block text-[10px] font-bold text-slate-500 uppercase mb-1">Nama Bank / E-Wallet</label>
+                      <input type="text" id="edit-bank-name" placeholder="Contoh: BCA, Seabank, GoPay" value="${AppState.editWorkerBankName}" class="w-full px-3.5 py-2.5 border rounded-xl text-xs bg-slate-50 focus:outline-none" />
+                    </div>
+                    <div>
+                      <label class="block text-[10px] font-bold text-slate-500 uppercase mb-1">Nomor Rekening / HP</label>
+                      <input type="text" id="edit-bank-number" placeholder="Nomor rekening" value="${AppState.editWorkerBankNumber}" class="w-full px-3.5 py-2.5 border rounded-xl text-xs bg-slate-50 focus:outline-none" />
+                    </div>
+                    <div>
+                      <label class="block text-[10px] font-bold text-slate-500 uppercase mb-1">Nama Pemilik Rekening</label>
+                      <input type="text" id="edit-bank-owner" placeholder="Nama lengkap pemilik" value="${AppState.editWorkerBankOwner}" class="w-full px-3.5 py-2.5 border rounded-xl text-xs bg-slate-50 focus:outline-none" />
+                    </div>
+                  </div>
+                </div>
+
                 <div class="border-t border-slate-100 pt-4 space-y-3">
                   <h4 class="font-bold text-xs text-slate-700">🛡️ Keamanan Sandi (Jika Lupa Sandi)</h4>
                   <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -1303,20 +1597,115 @@
                 </div>
 
                 <button type="submit" class="w-full bg-emerald-700 hover:bg-emerald-600 text-white font-extrabold py-3 rounded-2xl text-sm transition shadow-md">
-                  Simpan Perubahan Profil 💾
+                  Simpan Perubahan Profil & Rekening 💾
                 </button>
               </form>
             </div>
           `;
         } else if (AppState.activeTab === "admin" && currentUserData?.role === 'admin') {
+          // FILTER UNTUK DASHBOARD REKBER ADMIN AHMAD NANDAR
+          const pendingVerifications = AppState.jobs.filter(j => j.status === "Menunggu Verifikasi Admin");
+          const pendingPayouts = AppState.jobs.filter(j => j.status === "Dana Siap Cair");
+
           contentHtml = `
             <div class="space-y-8">
               <div class="bg-amber-500/10 border border-amber-200 p-6 rounded-2xl flex items-center space-x-3 text-amber-800 animate-fade-in">
                 <span class="text-2xl">🔒</span>
                 <div>
-                  <h4 class="font-bold text-sm">Selamat datang, edhos (Admin)</h4>
+                  <h4 class="font-bold text-sm">Selamat datang, edhos (Ahmad Nandar Suryadi - Admin)</h4>
                   <p class="text-xs font-light text-slate-600">Manajemen warga apartemen Menara Samawa & Menara Swasana.</p>
                 </div>
+              </div>
+
+              <!-- 🛡️ DASHBOARD KEUANGAN REKBER (ADMIN) -->
+              <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                
+                <!-- KOTAK 1: VERIFIKASI PEMBAYARAN MASUK -->
+                <div class="bg-white rounded-3xl border border-slate-200 p-6 shadow-sm space-y-4">
+                  <h3 class="font-extrabold text-slate-900 text-sm flex items-center gap-2">
+                    <span class="bg-amber-100 p-1.5 rounded-xl text-xs">💰</span>
+                    Perlu Verifikasi Transfer Masuk (${pendingVerifications.length})
+                  </h3>
+                  <p class="text-xs text-slate-400 font-light">Cek mutasi rekening BCA/DKI/Seabank Anda. Jika sudah masuk sejumlah upah + biaya admin, klik tombol verifikasi di bawah ini.</p>
+                  
+                  <div class="space-y-3.5 pt-1">
+                    ${pendingVerifications.map(job => {
+                      const poster = getPosterDetail(job.posterId);
+                      const worker = getPosterDetail(job.workerId);
+                      const totalTransfer = job.budget + REKBER_ADMIN_FEE;
+
+                      return `
+                        <div class="bg-slate-50 border border-slate-150 p-4 rounded-2xl text-xs space-y-3">
+                          <div class="flex justify-between items-start">
+                            <div>
+                              <h4 class="font-bold text-slate-800">${job.title}</h4>
+                              <p class="text-[10px] text-slate-400 mt-1">Oleh: ${poster.name} (${poster.unit})</p>
+                              <p class="text-[10px] text-slate-400">Pekerja: ${worker.name} (${worker.unit})</p>
+                            </div>
+                            <span class="bg-amber-100 text-amber-900 px-2 py-0.5 rounded-full font-black text-[9px] uppercase">Menunggu Cek</span>
+                          </div>
+                          
+                          <div class="flex items-center justify-between border-t border-slate-200 pt-2.5">
+                            <div>
+                              <p class="text-[9px] text-slate-400 uppercase font-semibold">Harus Masuk (Upah+Admin):</p>
+                              <p class="text-sm font-black text-emerald-700">Rp ${totalTransfer.toLocaleString('id-ID')}</p>
+                            </div>
+                            <button onclick="verifyRekberPaymentByAdmin('${job.id}')" class="bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold px-3.5 py-2 rounded-xl text-[10px] transition shadow">
+                              Verifikasi Dana Masuk ✓
+                            </button>
+                          </div>
+                        </div>
+                      `;
+                    }).join("")}
+                    ${pendingVerifications.length === 0 ? `<p class="text-slate-400 text-center py-6 text-xs font-light">Tidak ada verifikasi pembayaran tertunda.</p>` : ""}
+                  </div>
+                </div>
+
+                <!-- KOTAK 2: PERLU PENCAIRAN UPAH KE PEKERJA -->
+                <div class="bg-white rounded-3xl border border-slate-200 p-6 shadow-sm space-y-4">
+                  <h3 class="font-extrabold text-slate-900 text-sm flex items-center gap-2">
+                    <span class="bg-emerald-100 p-1.5 rounded-xl text-xs">💸</span>
+                    Perlu Transfer Cair ke Pekerja (${pendingPayouts.length})
+                  </h3>
+                  <p class="text-xs text-slate-400 font-light">Tugas telah disetujui Poster. Silakan transfer uang upah bersih berikut ke rekening pekerja di bawah, lalu klik konfirmasi.</p>
+                  
+                  <div class="space-y-3.5 pt-1">
+                    ${pendingPayouts.map(job => {
+                      const worker = getPosterDetail(job.workerId);
+
+                      return `
+                        <div class="bg-slate-50 border border-slate-150 p-4 rounded-2xl text-xs space-y-3">
+                          <div class="flex justify-between items-start">
+                            <div>
+                              <h4 class="font-bold text-slate-800">${job.title}</h4>
+                              <p class="text-[10px] text-emerald-800 font-semibold mt-1">Pekerja: ${worker.name} (${worker.unit})</p>
+                            </div>
+                            <span class="bg-emerald-100 text-emerald-900 px-2 py-0.5 rounded-full font-black text-[9px] uppercase">Siap Cair</span>
+                          </div>
+
+                          <!-- DETAIL REKENING TUJUAN TRANSFER -->
+                          <div class="bg-white p-2.5 rounded-xl border space-y-1 text-[11px] leading-relaxed">
+                            <p class="text-slate-400 uppercase tracking-wider font-bold text-[8px]">Rekening Tujuan:</p>
+                            <p class="text-slate-800 font-bold"><span class="text-emerald-700 font-black">[${worker.workerBankName || 'Belum Diisi'}]</span> ${worker.workerBankNumber || 'No Rek Kosong'}</p>
+                            <p class="text-slate-500 font-medium">a.n ${worker.workerBankOwner || 'Nama Kosong'}</p>
+                          </div>
+                          
+                          <div class="flex items-center justify-between border-t border-slate-200 pt-2.5">
+                            <div>
+                              <p class="text-[9px] text-slate-400 uppercase font-semibold">Nominal Transfer (Upah Bersih):</p>
+                              <p class="text-sm font-black text-emerald-700">Rp ${job.budget.toLocaleString('id-ID')}</p>
+                            </div>
+                            <button onclick="payoutWorkerByAdmin('${job.id}')" class="bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold px-3.5 py-2 rounded-xl text-[10px] transition shadow">
+                              Konfirmasi Selesai Cair ✓
+                            </button>
+                          </div>
+                        </div>
+                      `;
+                    }).join("")}
+                    ${pendingPayouts.length === 0 ? `<p class="text-slate-400 text-center py-6 text-xs font-light">Tidak ada penarikan upah tertunda.</p>` : ""}
+                  </div>
+                </div>
+
               </div>
 
               <!-- Upload File QRIS Baru oleh Admin -->
