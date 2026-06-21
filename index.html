@@ -4,13 +4,43 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
   <title>NuansaHub - Komunitas Nuansa Pondok Kelapa</title>
-  <!-- Tailwind CSS -->
+  
   <script src="https://cdn.tailwindcss.com"></script>
-  <!-- Google Fonts (Poppins & Inter) -->
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=Poppins:wght@400;600;700;800;900&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=Poppins:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
   
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            brandBlue: {
+              50: '#f0f6fc',
+              100: '#e1edf9',
+              500: '#0054a6', // Warna Logo Utama
+              600: '#00478d',
+              900: '#0b2545',
+              950: '#041021'
+            },
+            brandGreen: {
+              50: '#f1fbf3',
+              100: '#e1f7e6',
+              500: '#39b54a', // Warna Logo Utama
+              600: '#2f993d',
+              900: '#133f19',
+              950: '#071b0b'
+            }
+          },
+          fontFamily: {
+            sans: ['Inter', 'sans-serif'],
+            poppins: ['Poppins', 'sans-serif'],
+          }
+        }
+      }
+    }
+  </script>
+
   <style>
     body {
       font-family: 'Inter', sans-serif;
@@ -18,28 +48,33 @@
     h1, h2, h3, h4, .font-poppins {
       font-family: 'Poppins', sans-serif;
     }
-    /* Sembunyikan scrollbar */
-    .no-scrollbar::-webkit-scrollbar {
+    .scrollbar-none::-webkit-scrollbar {
       display: none;
     }
-    .no-scrollbar {
+    .scrollbar-none {
       -ms-overflow-style: none;  
       scrollbar-width: none;  
     }
-    /* Animasi */
     @keyframes slideUp {
-      from { transform: translateY(100%); }
-      to { transform: translateY(0); }
+      from { transform: translateY(100px); opacity: 0; }
+      to { transform: translateY(0); opacity: 1; }
     }
     .animate-slide-up {
-      animation: slideUp 0.3s ease-out forwards;
+      animation: slideUp 0.3s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+    }
+    @keyframes fadeIn {
+      from { opacity: 0; }
+      to { opacity: 1; }
+    }
+    .animate-fade-in {
+      animation: fadeIn 0.2s ease-out forwards;
     }
     @keyframes zoomIn {
       from { transform: scale(0.95); opacity: 0; }
       to { transform: scale(1); opacity: 1; }
     }
     .animate-zoom-in {
-      animation: zoomIn 0.2s ease-out forwards;
+      animation: zoomIn 0.25s cubic-bezier(0.16, 1, 0.3, 1) forwards;
     }
   </style>
 </head>
@@ -48,12 +83,12 @@
   <!-- APLIKASI UTAMA -->
   <div id="app" class="flex-grow flex flex-col">
     <!-- Tampilan Memuat (Loading State) Awal -->
-    <div id="initial-loader" class="fixed inset-0 bg-emerald-950 flex flex-col items-center justify-center z-50 text-white p-6">
-      <div class="mb-4 animate-bounce">
-        <img src="WhatsApp Image 2026-06-21 at 23.19.22.jpeg" class="w-24 h-24 rounded-full object-cover border-4 border-amber-400 shadow-2xl" alt="Nuansa Hub Logo" onerror="this.src='https://placehold.co/150/047857/ffffff?text=NH'"/>
+    <div id="initial-loader" class="fixed inset-0 bg-gradient-to-br from-brandBlue-950 via-brandBlue-900 to-brandGreen-950 flex flex-col items-center justify-center z-50 text-white p-6">
+      <div class="bg-white p-4 rounded-3xl shadow-2xl mb-4 animate-bounce max-w-[120px] border border-white/20">
+        <img src="WhatsApp Image 2026-06-21 at 23.19.22.jpeg" onerror="this.onerror=null; this.src='https://placehold.co/150x150/0054a6/ffffff?text=Nuansa+Hub'" alt="Logo Nuansa Hub" class="w-full h-auto">
       </div>
-      <h1 class="text-xl font-bold tracking-tight">Memuat NuansaHub...</h1>
-      <p class="text-xs text-emerald-300 mt-2 font-light">Menghubungkan ke Menara Samawa & Swasana</p>
+      <h1 class="text-xl font-bold tracking-tight text-white">Memuat NuansaHub...</h1>
+      <p class="text-xs text-sky-300 mt-2 font-light">Menghubungkan ke Menara Samawa & Swasana</p>
     </div>
   </div>
 
@@ -83,7 +118,7 @@
       updateDoc
     } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
-    // Konfigurasi cadangan kosong jika window.FirebaseConfig lambat dimuat atau tidak tersedia
+    // Konfigurasi cadangan aman
     const defaultFirebaseConfig = {
       apiKey: "",
       authDomain: "",
@@ -93,7 +128,6 @@
       appId: ""
     };
 
-    // Ambil dari window.FirebaseConfig yang didefinisikan secara dinamis oleh /api/config.js
     const rawConfig = window.FirebaseConfig || defaultFirebaseConfig;
 
     const firebaseConfig = {
@@ -106,12 +140,19 @@
     };
 
     const appId = typeof __app_id !== 'undefined' ? __app_id : 'nuansahub-app';
+    const REKBER_ADMIN_FEE = 2500; // Biaya admin flat Rekber Rp 2.500
 
-    // Inisialisasi Firebase Global
+    // Rekening Penampung Rekber Milik Ahmad Nandar Suryadi
+    const REKBER_ACCOUNTS = [
+      { bank: "BCA", number: "2721651357", holder: "Ahmad Nandar Suryadi" },
+      { bank: "DKI / JAKARTA", number: "42223601490", holder: "Ahmad Nandar Suryadi" },
+      { bank: "SEABANK", number: "901120193202", holder: "Ahmad Nandar Suryadi" }
+    ];
+
     let app, auth, db;
     let isFirebaseConnected = false; 
 
-    // Memeriksa dan menginisialisasi Firebase secara dinamis
+    // --- STREAMING_CHUNK: Initializing Firebase Connection ---
     const checkConfigAndInit = () => {
       const activeConfig = window.FirebaseConfig || firebaseConfig;
       const isConfigValid = activeConfig.apiKey && activeConfig.apiKey !== "";
@@ -133,7 +174,7 @@
       }
     };
 
-    // --- AVATAR DEFAULT PILIHAN ---
+    // --- AVATAR PRESETS ---
     const PRESET_AVATARS = [
       "https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=150",
       "https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=150",
@@ -150,25 +191,17 @@
       "Apa warna mobil/motor pertama Anda?"
     ];
 
-    // --- DATA REKBER SAMAWA/SWASANA ---
-    const REKBER_ACCOUNTS = [
-      { bank: "BCA", number: "2721651357", holder: "Ahmad Nandar Suryadi" },
-      { bank: "DKI / JAKARTA", number: "42223601490", holder: "Ahmad Nandar Suryadi" },
-      { bank: "SEABANK", number: "901120193202", holder: "Ahmad Nandar Suryadi" }
-    ];
-    const REKBER_ADMIN_FEE = 2500;
-
-    // State Aplikasi Global dengan Data Mock Awal (Lokal)
+    // --- STREAMING_CHUNK: Declaring Local Fallback AppState ---
     window.AppState = {
       users: [
-        { id: "u-admin", name: "edhos", tower: "Menara Samawa", unit: "Menara Samawa - 0102", phone: "082220691212", password: "admin", role: "admin", verified: true, points: 999, avatar: PRESET_AVATARS[0], securityQuestion: SECURITY_QUESTIONS[0], securityAnswer: "sd pondok kelapa", workerBankName: "BCA", workerBankNumber: "2721651357", workerBankOwner: "Ahmad Nandar Suryadi" },
-        { id: "u-1", name: "Budi Santoso", tower: "Menara Swasana", unit: "Menara Swasana - 1405", phone: "08123456000", password: "warga", role: "warga", verified: true, points: 120, avatar: PRESET_AVATARS[2], securityQuestion: SECURITY_QUESTIONS[1], securityAnswer: "kucing", workerBankName: "Mandiri", workerBankNumber: "123456789", workerBankOwner: "Budi Santoso" },
-        { id: "u-2", name: "Ibu Desi", tower: "Menara Samawa", unit: "Menara Samawa - 0309", phone: "08111222333", password: "warga", role: "warga", verified: true, points: 45, avatar: PRESET_AVATARS[3], securityQuestion: SECURITY_QUESTIONS[2], securityAnswer: "jakarta", workerBankName: "BCA", workerBankNumber: "987654321", workerBankOwner: "Desi Amalia" },
+        { id: "u-admin", name: "edhos", tower: "Menara Samawa", unit: "Menara Samawa - 0102", phone: "082220691212", password: "admin", role: "admin", verified: true, points: 999, avatar: PRESET_AVATARS[0], securityQuestion: SECURITY_QUESTIONS[0], securityAnswer: "sd pondok kelapa", workerBankName: "BCA", workerBankNumber: "123456789", workerBankOwner: "edhos Admin" },
+        { id: "u-1", name: "Budi Santoso", tower: "Menara Swasana", unit: "Menara Swasana - 1405", phone: "08123456000", password: "warga", role: "warga", verified: true, points: 120, avatar: PRESET_AVATARS[2], securityQuestion: SECURITY_QUESTIONS[1], securityAnswer: "kucing", workerBankName: "SEABANK", workerBankNumber: "987654321", workerBankOwner: "Budi Santoso" },
+        { id: "u-2", name: "Ibu Desi", tower: "Menara Samawa", unit: "Menara Samawa - 0309", phone: "08111222333", password: "warga", role: "warga", verified: true, points: 45, avatar: PRESET_AVATARS[3], securityQuestion: SECURITY_QUESTIONS[2], securityAnswer: "jakarta", workerBankName: "BCA", workerBankNumber: "1122334455", workerBankOwner: "Ibu Desi" },
         { id: "u-3", name: "Rian Hidayat", tower: "Menara Samawa", unit: "Menara Samawa - 1205", phone: "08123456789", password: "warga", role: "warga", verified: true, points: 80, avatar: PRESET_AVATARS[4], securityQuestion: SECURITY_QUESTIONS[3], securityAnswer: "hitam", workerBankName: "DKI", workerBankNumber: "456123789", workerBankOwner: "Rian Hidayat" }
       ],
       jobs: [
-        { id: "job-1", title: "Bantu Pindahan Sofa & Meja ke Lantai 15", category: "Serabutan", budget: 150000, posterId: "u-3", description: "Minta tolong 2 orang berbadan sehat untuk angkat sofa lipat dan meja makan dari lobi Menara Samawa ke unit kami di lantai 12. Estimasi pengerjaan cepat sekitar 1 jam saja.", createdAt: "2 jam lalu", status: "Aktif", workerId: null },
-        { id: "job-2", title: "Jasa Pembersihan Unit Apartemen Kosong", category: "Profesional", budget: 200000, posterId: "u-2", description: "Perlu jasa deep cleaning untuk unit di Menara Samawa sebelum disewakan bulan depan. Alat-alat pembersih standar sudah disediakan di dalam unit.", createdAt: "5 jam lalu", status: "Aktif", workerId: null }
+        { id: "job-1", title: "Bantu Pindahan Sofa & Meja ke Lantai 15", category: "Serabutan", budget: 150000, posterId: "u-3", description: "Minta tolong 2 orang berbadan sehat untuk angkat sofa lipat dan meja makan dari lobi Menara Samawa ke unit kami di lantai 12. Estimasi pengerjaan cepat sekitar 1 jam saja.", createdAt: "2 jam lalu", status: "Aktif", workerId: null, paymentMethod: "Langsung" },
+        { id: "job-2", title: "Jasa Pembersihan Unit Apartemen Kosong", category: "Profesional", budget: 200000, posterId: "u-2", description: "Perlu jasa deep cleaning untuk unit di Menara Samawa sebelum disewakan bulan depan. Alat-alat pembersih standar sudah disediakan di dalam unit.", createdAt: "5 jam lalu", status: "Aktif", workerId: null, paymentMethod: "Rekber" }
       ],
       talents: [
         { id: "talent-1", userId: "u-1", skill: "Servis AC, TV & Komputer", description: "Melayani jasa perawatan/cuci AC, perbaikan TV mati total, instalasi ulang laptop, dan perbaikan jaringan WiFi lambat khusus untuk warga Nuansa Pondok Kelapa.", rating: 4.9, reviews: 24 }
@@ -180,8 +213,7 @@
           parties: ["u-1", "u-3"],
           messages: [
             { senderId: "u-1", text: "Halo Rian, saya Budi dari Swasana. Saya luang siang ini untuk bantu pindahan sofa.", time: "10:30" },
-            { senderId: "u-3", text: "Halo Budi! Kebetulan sekali, bisa bantu langsung setelah jam makan siang nanti?", time: "10:32" },
-            { senderId: "u-1", text: "Bisa, jam 1 siang saya meluncur ke lobi Menara Samawa ya.", time: "10:35" }
+            { senderId: "u-3", text: "Halo Budi! Kebetulan sekali, bisa bantu langsung setelah jam makan siang nanti?", time: "10:32" }
           ]
         }
       ],
@@ -200,18 +232,16 @@
       forgotAnswer: "",
       forgotNewPass: "",
       editAvatar: "",
-      isCustomAvatarUrl: false,
       editName: "",
       editPhone: "",
       editPassword: "",
       editQuestion: "",
       editAnswer: "",
-      editWorkerBankName: "",
-      editWorkerBankNumber: "",
-      editWorkerBankOwner: ""
+      workerBankName: "",
+      workerBankNumber: "",
+      workerBankOwner: ""
     };
 
-    // Fungsi Pembantu Pencari Informasi Pembuat (Global Scope)
     window.getPosterDetail = function(posterId) {
       return AppState.users.find(u => u.id === posterId) || { 
         name: "Warga Nuansa", 
@@ -221,7 +251,6 @@
       };
     };
 
-    // Toast Notification Manager
     window.showToast = function(message) {
       const toastContainer = document.getElementById("toast-alert");
       if (toastContainer) {
@@ -238,10 +267,9 @@
       }
     };
 
-    // SINKRONISASI DATA FIRESTORE REAL-TIME (Kepatuhan RULE 1 & RULE 2)
+    // --- STREAMING_CHUNK: Setup Cloud Firestore Synchronization ---
     const syncFirestoreData = () => {
       if (!db || !auth.currentUser) return;
-      
       const appIdPath = appId;
       
       const publicDataJobsRef = collection(db, 'artifacts', appIdPath, 'public', 'data', 'jobs');
@@ -250,7 +278,6 @@
       const publicDataChatsRef = collection(db, 'artifacts', appIdPath, 'public', 'data', 'chats');
       const publicDataConfigRef = doc(db, 'artifacts', appIdPath, 'public', 'data', 'config', 'qris');
 
-      // Inisialisasi awal data mading & user ke Cloud jika kosong
       const populateInitialDataIfEmpty = async () => {
         try {
           const userSnapshot = await getDocs(publicDataUsersRef);
@@ -284,82 +311,44 @@
 
       populateInitialDataIfEmpty();
 
-      // Sinkronisasi Pengguna
       onSnapshot(publicDataUsersRef, (snapshot) => {
         isFirebaseConnected = true;
         const syncedUsers = [];
-        snapshot.forEach(doc => {
-          syncedUsers.push({ id: doc.id, ...doc.data() });
-        });
-        if (syncedUsers.length > 0) {
-          AppState.users = syncedUsers;
-          renderApp();
-        }
-      }, (error) => {
-        console.warn("Gagal sinkronisasi pengguna cloud.", error);
+        snapshot.forEach(doc => { syncedUsers.push({ id: doc.id, ...doc.data() }); });
+        if (syncedUsers.length > 0) { AppState.users = syncedUsers; renderApp(); }
       });
 
-      // Sinkronisasi Pekerjaan
       onSnapshot(publicDataJobsRef, (snapshot) => {
         isFirebaseConnected = true;
         const syncedJobs = [];
-        snapshot.forEach(doc => {
-          syncedJobs.push({ id: doc.id, ...doc.data() });
-        });
-        if (syncedJobs.length > 0) {
-          AppState.jobs = syncedJobs;
-          renderApp();
-        }
-      }, (error) => {
-        console.warn("Gagal sinkronisasi pekerjaan cloud.", error);
+        snapshot.forEach(doc => { syncedJobs.push({ id: doc.id, ...doc.data() }); });
+        if (syncedJobs.length > 0) { AppState.jobs = syncedJobs; renderApp(); }
       });
 
-      // Sinkronisasi Jasa
       onSnapshot(publicDataTalentsRef, (snapshot) => {
         isFirebaseConnected = true;
         const syncedTalents = [];
-        snapshot.forEach(doc => {
-          syncedTalents.push({ id: doc.id, ...doc.data() });
-        });
-        if (syncedTalents.length > 0) {
-          AppState.talents = syncedTalents;
-          renderApp();
-        }
-      }, (error) => {
-        console.warn("Gagal sinkronisasi keahlian cloud.", error);
+        snapshot.forEach(doc => { syncedTalents.push({ id: doc.id, ...doc.data() }); });
+        if (syncedTalents.length > 0) { AppState.talents = syncedTalents; renderApp(); }
       });
 
-      // Sinkronisasi Diskusi/Obrolan
       onSnapshot(publicDataChatsRef, (snapshot) => {
         isFirebaseConnected = true;
         const syncedChats = [];
-        snapshot.forEach(doc => {
-          syncedChats.push({ id: doc.id, ...doc.data() });
-        });
-        if (syncedChats.length > 0) {
-          AppState.chats = syncedChats;
-          renderApp();
-        }
-      }, (error) => {
-        console.warn("Gagal sinkronisasi diskusi cloud.", error);
+        snapshot.forEach(doc => { syncedChats.push({ id: doc.id, ...doc.data() }); });
+        if (syncedChats.length > 0) { AppState.chats = syncedChats; renderApp(); }
       });
 
-      // Sinkronisasi QRIS khusus
       onSnapshot(publicDataConfigRef, (snapshot) => {
         isFirebaseConnected = true;
         if (snapshot.exists()) {
           const configData = snapshot.data();
-          if (configData && configData.image) {
-            AppState.qrisImage = configData.image;
-            renderApp();
-          }
+          if (configData && configData.image) { AppState.qrisImage = configData.image; renderApp(); }
         }
-      }, (error) => {
-        console.warn("Config QRIS tidak terdeteksi di cloud.", error);
       });
     };
 
-    // Firebase Core Auth Integration (Penyelarasan RULE 3)
+    // --- STREAMING_CHUNK: Initializing App and Sign-In Anon ---
     const initFirebaseAuth = async () => {
       const hideLoader = () => {
         const loader = document.getElementById("initial-loader");
@@ -369,21 +358,15 @@
       const isInitialized = checkConfigAndInit();
 
       if (!isInitialized || !auth) {
-        console.warn("Firebase tidak diaktifkan. Beroperasi dalam mode offline.");
         isFirebaseConnected = false;
         hideLoader();
-        renderApp(); // Tetap render app agar tidak blank/layar putih
+        renderApp();
         return;
       }
 
       try {
-        if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
-          await signInWithCustomToken(auth, __initial_auth_token);
-        } else {
-          await signInAnonymously(auth);
-        }
+        await signInAnonymously(auth);
         isFirebaseConnected = true;
-        console.log("Autentikasi Firebase berhasil terhubung!");
         syncFirestoreData();
       } catch (err) {
         console.warn("Autentikasi Firebase gagal. Beroperasi dalam mode offline.", err);
@@ -394,18 +377,11 @@
       }
     };
 
-    // Jalankan Autentikasi dan Sinkronisasi Sistem Utama pada Load Pertama
-    const startApp = () => {
+    window.onload = function() {
       initFirebaseAuth();
     };
 
-    if (document.readyState === "complete" || document.readyState === "interactive") {
-      setTimeout(startApp, 100);
-    } else {
-      window.addEventListener('DOMContentLoaded', startApp);
-    }
-
-    // Navigasi Tab
+    // --- STREAMING_CHUNK: Defining Tab & Filtering Actions ---
     window.changeTab = function(tabName) {
       if ((tabName === 'chats' || tabName === 'profile') && (!AppState.isLoggedIn || AppState.isGuestMode)) {
         openGuestWarningModal("Mengakses halaman pribadi / obrolan");
@@ -420,7 +396,6 @@
       }
       AppState.activeTab = tabName;
 
-      // Isi form ketika tab profil aktif
       if (tabName === 'profile') {
         const currentUserData = AppState.users.find(u => u.id === AppState.currentUserId);
         if (currentUserData) {
@@ -430,9 +405,9 @@
           AppState.editQuestion = currentUserData.securityQuestion || SECURITY_QUESTIONS[0];
           AppState.editAnswer = currentUserData.securityAnswer || "";
           AppState.editAvatar = currentUserData.avatar;
-          AppState.editWorkerBankName = currentUserData.workerBankName || "";
-          AppState.editWorkerBankNumber = currentUserData.workerBankNumber || "";
-          AppState.editWorkerBankOwner = currentUserData.workerBankOwner || "";
+          AppState.workerBankName = currentUserData.workerBankName || "";
+          AppState.workerBankNumber = currentUserData.workerBankNumber || "";
+          AppState.workerBankOwner = currentUserData.workerBankOwner || "";
         }
       }
       renderApp();
@@ -448,7 +423,7 @@
       renderApp();
     };
 
-    // Login Form Submit
+    // --- STREAMING_CHUNK: Registering Auth Events ---
     window.handleLoginSubmit = function(e) {
       e.preventDefault();
       const phone = document.getElementById("login-phone").value;
@@ -468,7 +443,6 @@
       }
     };
 
-    // Registrasi Warga Baru
     window.handleRegisterSubmit = function(e) {
       e.preventDefault();
       const name = document.getElementById("reg-name").value;
@@ -511,7 +485,7 @@
       
       if (db) {
         setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'users', newId), newUser)
-          .then(() => showToast(`🎉 Berhasil Daftar & Menyimpan Data Cloud!`))
+          .then(() => showToast(`🎉 Berhasil Daftar!`))
           .catch(err => console.log("Gagal simpan online. Disimpan lokal."));
       }
 
@@ -523,7 +497,6 @@
       renderApp();
     };
 
-    // Logout
     window.handleLogoutAction = function() {
       AppState.isLoggedIn = false;
       AppState.isGuestMode = true;
@@ -534,7 +507,7 @@
       renderApp();
     };
 
-    // Reset password warga oleh Admin (Nuansa123)
+    // --- STREAMING_CHUNK: Admin and Profile Actions ---
     window.resetUserPasswordByAdmin = function(userId) {
       const isConfirmed = confirm("Reset sandi warga menjadi 'Nuansa123'?");
       if (isConfirmed) {
@@ -548,7 +521,6 @@
       }
     };
 
-    // Toggle Verifikasi Warga oleh Admin
     window.toggleUserVerification = function(userId) {
       AppState.users = AppState.users.map(u => {
         if (u.id === userId) {
@@ -565,24 +537,21 @@
       renderApp();
     };
 
-    // Hapus Loker oleh Admin
     window.deleteJobByAdmin = function(jobId) {
       const isConfirmed = confirm("Hapus postingan loker ini?");
       if (isConfirmed) {
         AppState.jobs = AppState.jobs.filter(j => j.id !== jobId);
         if (db) {
-          const docRef = doc(db, 'artifacts', appId, 'public', 'data', 'jobs', jobId);
-          setDoc(docRef, {}).then(() => {
-            showToast("🗑️ Postingan berhasil dihapus dari Cloud.");
-          }).catch(e => console.log(e));
+          setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'jobs', jobId), {}).then(() => {
+            showToast("🗑️ Postingan berhasil dihapus.");
+          });
         } else {
-          showToast("🗑️ Postingan berhasil dihapus secara Lokal.");
+          showToast("🗑️ Postingan berhasil dihapus.");
         }
         renderApp();
       }
     };
 
-    // Unggah Foto Profil Warga
     window.handleProfileImageUpload = function(event) {
       const file = event.target.files[0];
       if (file) {
@@ -600,7 +569,6 @@
       }
     };
 
-    // Penanganan Unggah QRIS dari Admin
     window.handleQRISUpload = function(event) {
       const file = event.target.files[0];
       if (file) {
@@ -611,15 +579,12 @@
         const reader = new FileReader();
         reader.onloadend = () => {
           AppState.qrisImage = reader.result;
-          // Simpan ke Firestore
           if (db) {
             setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'config', 'qris'), {
               image: reader.result,
               updatedAt: new Date().toISOString()
             }).then(() => {
-              showToast("📱 QRIS Donasi berhasil diperbarui di cloud!");
-            }).catch(e => {
-              showToast("📱 QRIS tersimpan lokal (Offline).");
+              showToast("📱 QRIS Donasi berhasil diperbarui!");
             });
           } else {
             showToast("📱 QRIS tersimpan lokal.");
@@ -630,7 +595,7 @@
       }
     };
 
-    // Simpan Perubahan Profil Warga (Termasuk Rekening/E-Wallet Payout)
+    // --- STREAMING_CHUNK: Writing Profile Saving Mechanics ---
     window.handleSaveProfileSubmit = function(e) {
       e.preventDefault();
       const name = document.getElementById("edit-name").value;
@@ -638,9 +603,9 @@
       const pass = document.getElementById("edit-password").value;
       const question = document.getElementById("edit-question").value;
       const answer = document.getElementById("edit-answer").value;
-      const bankName = document.getElementById("edit-bank-name").value;
-      const bankNumber = document.getElementById("edit-bank-number").value;
-      const bankOwner = document.getElementById("edit-bank-owner").value;
+      const wBankName = document.getElementById("worker-bank-name").value;
+      const wBankNumber = document.getElementById("worker-bank-number").value;
+      const wBankOwner = document.getElementById("worker-bank-owner").value;
 
       AppState.users = AppState.users.map(u => {
         if (u.id === AppState.currentUserId) {
@@ -652,9 +617,9 @@
             avatar: AppState.editAvatar || u.avatar,
             securityQuestion: question,
             securityAnswer: answer.toLowerCase().trim(),
-            workerBankName: bankName,
-            workerBankNumber: bankNumber,
-            workerBankOwner: bankOwner
+            workerBankName: wBankName,
+            workerBankNumber: wBankNumber,
+            workerBankOwner: wBankOwner
           };
           if (db) {
             setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'users', u.id), updated)
@@ -665,15 +630,214 @@
         return u;
       });
 
-      showToast("🌟 Perubahan profil & rekening berhasil disimpan!");
+      showToast("🌟 Perubahan profil berhasil disimpan!");
       renderApp();
     };
 
-    // Memulai Chat baru berdasarkan Lowongan Pekerjaan
+    // --- STREAMING_CHUNK: ESCROW SYSTEM - AGREEMENT & WORKFLOW ---
+    // 1. Poster agrees with Worker
+    window.markJobAsAgreed = function(chatId) {
+      const chat = AppState.chats.find(c => c.id === chatId);
+      if (!chat || !chat.jobId) return;
+
+      const job = AppState.jobs.find(j => j.id === chat.jobId);
+      if (!job) return;
+
+      const otherPartyId = chat.parties.find(p => p !== AppState.currentUserId);
+      const isRekber = job.paymentMethod === 'Rekber';
+      const targetStatus = isRekber ? "Menunggu Transfer Poster" : "Sedang Dikerjakan";
+
+      AppState.jobs = AppState.jobs.map(j => {
+        if (j.id === chat.jobId) {
+          const updatedJob = { ...j, status: targetStatus, workerId: otherPartyId };
+          if (db) {
+            setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'jobs', j.id), updatedJob);
+          }
+          return updatedJob;
+        }
+        return j;
+      });
+
+      const sysText = isRekber
+        ? `🤝 Pekerjaan disepakati via Rekber. Poster harap mentransfer Upah + Admin ke salah satu rekening pengelola.`
+        : `🤝 Kesepakatan Bayar Langsung terjalin. Pekerja silakan mulai memproses tugas.`;
+
+      chat.messages.push({ senderId: "system", text: sysText, time: "Sistem" });
+
+      if (db) {
+        setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'chats', chatId), chat);
+      }
+      showToast("🤝 Pekerjaan berhasil disepakati!");
+      renderApp();
+    };
+
+    // 2. Poster reports payment sent to Rekber
+    window.confirmPaymentToRekber = function(chatId) {
+      const chat = AppState.chats.find(c => c.id === chatId);
+      if (!chat || !chat.jobId) return;
+
+      AppState.jobs = AppState.jobs.map(j => {
+        if (j.id === chat.jobId) {
+          const updatedJob = { ...j, status: "Menunggu Verifikasi Admin" };
+          if (db) { setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'jobs', j.id), updatedJob); }
+          return updatedJob;
+        }
+        return j;
+      });
+
+      chat.messages.push({ senderId: "system", text: `💰 Poster melaporkan sudah transfer Rekber. Menunggu verifikasi admin edhos.`, time: "Sistem" });
+      if (db) { setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'chats', chatId), chat); }
+      showToast("💰 Pembayaran Rekber dilaporkan!");
+      renderApp();
+    };
+
+    // 3. Worker reports job finished
+    window.reportJobFinishedByWorker = function(chatId) {
+      const chat = AppState.chats.find(c => c.id === chatId);
+      if (!chat || !chat.jobId) return;
+
+      const job = AppState.jobs.find(j => j.id === chat.jobId);
+      if (!job) return;
+
+      const isRekber = job.paymentMethod === 'Rekber';
+      const targetStatus = isRekber ? "Menunggu Lepas Dana" : "Menunggu Pelunasan Mandiri";
+
+      AppState.jobs = AppState.jobs.map(j => {
+        if (j.id === chat.jobId) {
+          const updatedJob = { ...j, status: targetStatus };
+          if (db) { setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'jobs', j.id), updatedJob); }
+          return updatedJob;
+        }
+        return j;
+      });
+
+      const sysText = isRekber
+        ? `🏁 Pekerja melaporkan tugas selesai. Poster harap cek hasil kerja, lalu klik Lepas Dana jika sesuai.`
+        : `🏁 Tugas dinyatakan selesai! Poster silakan transfer pembayaran ke pekerja, lalu konfirmasi lunas.`;
+
+      chat.messages.push({ senderId: "system", text: sysText, time: "Sistem" });
+      if (db) { setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'chats', chatId), chat); }
+      showToast("🏁 Pekerjaan dilaporkan selesai!");
+      renderApp();
+    };
+
+    // 4. Poster releases Rekber funds
+    window.releaseEscrowToWorker = function(chatId) {
+      const chat = AppState.chats.find(c => c.id === chatId);
+      if (!chat || !chat.jobId) return;
+
+      AppState.jobs = AppState.jobs.map(j => {
+        if (j.id === chat.jobId) {
+          const updatedJob = { ...j, status: "Dana Siap Cair" };
+          if (db) { setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'jobs', j.id), updatedJob); }
+          return updatedJob;
+        }
+        return j;
+      });
+
+      chat.messages.push({ senderId: "system", text: `🔓 Poster menyetujui pelepasan dana. Admin edhos akan segera mentransfer upah bersih ke Pekerja.`, time: "Sistem" });
+      if (db) { setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'chats', chatId), chat); }
+      showToast("🔓 Dana Rekber dilepas!");
+      renderApp();
+    };
+
+    // 5. Poster confirms direct payment cleared
+    window.confirmDirectPaymentCleared = function(chatId) {
+      const chat = AppState.chats.find(c => c.id === chatId);
+      if (!chat || !chat.jobId) return;
+
+      const job = AppState.jobs.find(j => j.id === chat.jobId);
+      if (!job) return;
+
+      AppState.jobs = AppState.jobs.map(j => {
+        if (j.id === chat.jobId) {
+          const updatedJob = { ...j, status: "Selesai & Cair" };
+          if (db) { setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'jobs', j.id), updatedJob); }
+          return updatedJob;
+        }
+        return j;
+      });
+
+      // Reward +25 points
+      const workerId = job.workerId;
+      AppState.users = AppState.users.map(u => {
+        if (u.id === workerId) {
+          const updated = { ...u, points: (u.points || 0) + 25 };
+          if (db) { setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'users', u.id), updated); }
+          return updated;
+        }
+        return u;
+      });
+
+      chat.messages.push({ senderId: "system", text: `🎉 Selesai! Pembayaran lunas terverifikasi. Pekerja mendapatkan +25 Poin Gotong Royong.`, time: "Sistem" });
+      if (db) { setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'chats', chatId), chat); }
+      showToast("🎉 Transaksi selesai sepenuhnya!");
+      renderApp();
+    };
+
+    // --- STREAMING_CHUNK: ADMIN EXCLUSIVE TRANSACTIONS (REKBER ACTIONS) ---
+    // A1. Admin approves incoming deposit
+    window.approveRekberTransferByAdmin = function(jobId, chatId) {
+      AppState.jobs = AppState.jobs.map(j => {
+        if (j.id === jobId) {
+          const updatedJob = { ...j, status: "Dana Ditahan (Mulai Kerja)" };
+          if (db) { setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'jobs', j.id), updatedJob); }
+          return updatedJob;
+        }
+        return j;
+      });
+
+      if (chatId) {
+        const chat = AppState.chats.find(c => c.id === chatId);
+        if (chat) {
+          chat.messages.push({ senderId: "system", text: `🛡️ Admin mengonfirmasi transfer masuk. Dana upah aman ditahan Rekber. Pekerja dipersilakan mulai bekerja!`, time: "Sistem" });
+          if (db) { setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'chats', chatId), chat); }
+        }
+      }
+
+      showToast("🛡️ Pembayaran masuk diverifikasi!");
+      renderApp();
+    };
+
+    // A2. Admin pays out to Worker and finishes flow
+    window.payoutWorkerByAdmin = function(jobId) {
+      const job = AppState.jobs.find(j => j.id === jobId);
+      if (!job) return;
+
+      AppState.jobs = AppState.jobs.map(j => {
+        if (j.id === jobId) {
+          const updatedJob = { ...j, status: "Selesai & Cair" };
+          if (db) { setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'jobs', j.id), updatedJob); }
+          return updatedJob;
+        }
+        return j;
+      });
+
+      // Award +25 points
+      const workerId = job.workerId;
+      AppState.users = AppState.users.map(u => {
+        if (u.id === workerId) {
+          const updated = { ...u, points: (u.points || 0) + 25 };
+          if (db) { setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'users', u.id), updated); }
+          return updated;
+        }
+        return u;
+      });
+
+      const chat = AppState.chats.find(c => c.jobId === jobId);
+      if (chat) {
+        chat.messages.push({ senderId: "system", text: `🎉 Selesai! Admin sudah mentransfer uang upah bersih ke Pekerja. Terima kasih telah menggunakan Rekber NuansaHub! Pekerja berhak mendapat +25 Poin.`, time: "Sistem" });
+        if (db) { setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'chats', chat.id), chat); }
+      }
+
+      showToast("💸 Upah berhasil ditransfer ke Pekerja!");
+      renderApp();
+    };
+
+    // --- STREAMING_CHUNK: Setting Chat Initiation with Job Link ---
     window.initiateChatFromJob = function(jobId) {
       if (!checkAccess("Mengirim pesan / berdiskusi pekerjaan")) return;
       
-      // Penanganan khusus tanya jasa warga
       let job = AppState.jobs.find(j => j.id === jobId);
       let isTalentInquiry = jobId.startsWith("talent-inq-");
       let receiverId = "";
@@ -709,15 +873,14 @@
           jobId: jobId,
           parties: [AppState.currentUserId, receiverId],
           messages: [
-            { senderId: "system", text: `💬 Ruang obrolan dimulai untuk: "${jobTitle}". Saling sepakati detail kerja terlebih dahulu sebelum melanjutkan ke Rekening Bersama (Rekber) demi keamanan upah.`, time: "Sistem" }
+            { senderId: "system", text: `💬 Ruang obrolan dimulai untuk: "${jobTitle}". Selesaikan negosiasi pengerjaan secara kekeluargaan.`, time: "Sistem" }
           ]
         };
         AppState.chats.push(newChat);
         AppState.activeChatId = newChatId;
 
         if (db) {
-          setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'chats', newChatId), newChat)
-            .catch(e => console.log("Gagal membuat chat di cloud."));
+          setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'chats', newChatId), newChat);
         }
       } else {
         AppState.activeChatId = existingChat.id;
@@ -726,7 +889,6 @@
       renderApp();
     };
 
-    // Mengirim pesan chat
     window.sendChatMessageAction = function(e) {
       e.preventDefault();
       const text = document.getElementById("chat-message-input").value;
@@ -748,242 +910,19 @@
       };
 
       AppState.chats = AppState.chats.map(chat => {
-        if (chat.id === AppState.activeChatId) {
-          return updatedChat;
-        }
+        if (chat.id === AppState.activeChatId) { return updatedChat; }
         return chat;
       });
 
       if (db) {
-        setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'chats', AppState.activeChatId), updatedChat)
-          .catch(e => console.log("Gagal kirim pesan ke cloud."));
+        setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'chats', AppState.activeChatId), updatedChat);
       }
 
       document.getElementById("chat-message-input").value = "";
       renderApp();
     };
 
-    // --- ESCROW ALUR KESEPAKATAN REKBER ---
-
-    // 1. Tombol 'Sepakati' ditekan -> Poster & Pekerja setuju. Status Loker: 'Menunggu Transfer Poster'
-    window.markJobAsAgreed = function(chatId) {
-      const chat = AppState.chats.find(c => c.id === chatId);
-      if (!chat || !chat.jobId) return;
-
-      const workerId = chat.parties.find(p => p !== getJobPosterId(chat.jobId));
-      
-      AppState.jobs = AppState.jobs.map(j => {
-        if (j.id === chat.jobId) {
-          const updatedJob = { ...j, status: "Menunggu Transfer Poster", workerId: workerId };
-          if (db) {
-            setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'jobs', j.id), updatedJob)
-              .catch(e => console.log("Gagal update pekerjaan di cloud."));
-          }
-          return updatedJob;
-        }
-        return j;
-      });
-
-      chat.messages.push({
-        senderId: "system",
-        text: `🤝 Kesepakatan tercapai! Pemberi kerja diwajibkan melakukan transfer ke salah satu rekening pengelola/admin (Ahmad Nandar Suryadi) untuk mengamankan pembayaran upah.`,
-        time: "Sistem"
-      });
-
-      if (db) {
-        setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'chats', chatId), chat)
-          .catch(e => console.log("Gagal kirim pesan kesepakatan ke cloud."));
-      }
-
-      showToast("🤝 Pekerjaan disepakati! Menunggu pembayaran.");
-      renderApp();
-    };
-
-    // Helper pencari id pembuat lowongan
-    function getJobPosterId(jobId) {
-      const job = AppState.jobs.find(j => j.id === jobId);
-      return job ? job.posterId : "";
-    }
-
-    // 2. Poster Mengonfirmasi sudah transfer dana ke Rekber. Status Loker: 'Menunggu Verifikasi Admin'
-    window.confirmPaymentToRekber = function(chatId) {
-      const chat = AppState.chats.find(c => c.id === chatId);
-      if (!chat || !chat.jobId) return;
-
-      AppState.jobs = AppState.jobs.map(j => {
-        if (j.id === chat.jobId) {
-          const updatedJob = { ...j, status: "Menunggu Verifikasi Admin" };
-          if (db) {
-            setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'jobs', j.id), updatedJob)
-              .catch(e => console.log("Gagal update pekerjaan di cloud."));
-          }
-          return updatedJob;
-        }
-        return j;
-      });
-
-      chat.messages.push({
-        senderId: "system",
-        text: `💰 Pemberi Kerja mengonfirmasi telah melakukan transfer ke rekening pengelola. Menunggu Admin Ahmad Nandar Suryadi memverifikasi dana masuk.`,
-        time: "Sistem"
-      });
-
-      if (db) {
-        setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'chats', chatId), chat)
-          .catch(e => console.log("Gagal kirim pesan transfer ke cloud."));
-      }
-
-      showToast("💰 Konfirmasi pembayaran terkirim ke Admin.");
-      renderApp();
-    };
-
-    // 3. Admin Memverifikasi Pembayaran Rekber. Status Loker: 'Dana Ditahan (Mulai Kerja)'
-    window.verifyRekberPaymentByAdmin = function(jobId) {
-      const job = AppState.jobs.find(j => j.id === jobId);
-      if (!job) return;
-
-      AppState.jobs = AppState.jobs.map(j => {
-        if (j.id === jobId) {
-          const updatedJob = { ...j, status: "Dana Ditahan (Mulai Kerja)" };
-          if (db) {
-            setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'jobs', j.id), updatedJob)
-              .catch(e => console.log("Gagal update pekerjaan di cloud."));
-          }
-          return updatedJob;
-        }
-        return j;
-      });
-
-      // Cari obrolan terkait pekerjaan ini untuk mengirim pesan sistem
-      const relatedChat = AppState.chats.find(c => c.jobId === jobId);
-      if (relatedChat) {
-        relatedChat.messages.push({
-          senderId: "system",
-          text: `🛡️ PEMBAYARAN REKBER TERVERIFIKASI! Dana sebesar Rp ${(job.budget).toLocaleString('id-ID')} sudah aman ditahan oleh Admin Ahmad Nandar Suryadi. Pekerja dipersilakan memulai tugas.`,
-          time: "Sistem"
-        });
-        if (db) {
-          setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'chats', relatedChat.id), relatedChat)
-            .catch(e => console.log("Gagal kirim pesan ke cloud."));
-        }
-      }
-
-      showToast("🛡️ Dana terverifikasi & ditahan! Status: Muli Kerja.");
-      renderApp();
-    };
-
-    // 4. Pekerja Melaporkan Tugas telah Selesai. Status Loker: 'Menunggu Lepas Dana'
-    window.reportJobFinishedByWorker = function(chatId) {
-      const chat = AppState.chats.find(c => c.id === chatId);
-      if (!chat || !chat.jobId) return;
-
-      AppState.jobs = AppState.jobs.map(j => {
-        if (j.id === chat.jobId) {
-          const updatedJob = { ...j, status: "Menunggu Lepas Dana" };
-          if (db) {
-            setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'jobs', j.id), updatedJob)
-              .catch(e => console.log("Gagal update pekerjaan di cloud."));
-          }
-          return updatedJob;
-        }
-        return j;
-      });
-
-      chat.messages.push({
-        senderId: "system",
-        text: `🏁 Pekerja melaporkan tugas telah selesai sepenuhnya. Menunggu Pemberi Kerja memeriksa hasil dan melepas dana upah.`,
-        time: "Sistem"
-      });
-
-      if (db) {
-        setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'chats', chatId), chat)
-          .catch(e => console.log("Gagal kirim pesan ke cloud."));
-      }
-
-      showToast("🏁 Tugas dilaporkan selesai. Menunggu konfirmasi.");
-      renderApp();
-    };
-
-    // 5. Poster mengizinkan pelepasan dana. Status Loker: 'Dana Siap Cair'
-    window.releaseEscrowToWorker = function(chatId) {
-      const chat = AppState.chats.find(c => c.id === chatId);
-      if (!chat || !chat.jobId) return;
-
-      AppState.jobs = AppState.jobs.map(j => {
-        if (j.id === chat.jobId) {
-          const updatedJob = { ...j, status: "Dana Siap Cair" };
-          if (db) {
-            setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'jobs', j.id), updatedJob)
-              .catch(e => console.log("Gagal update pekerjaan di cloud."));
-          }
-          return updatedJob;
-        }
-        return j;
-      });
-
-      chat.messages.push({
-        senderId: "system",
-        text: `🔓 Pemberi Kerja menyetujui hasil tugas & melepas dana Rekber. Menunggu Admin mencairkan upah langsung ke rekening terdaftar Pekerja.`,
-        time: "Sistem"
-      });
-
-      if (db) {
-        setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'chats', chatId), chat)
-          .catch(e => console.log("Gagal kirim pesan ke cloud."));
-      }
-
-      showToast("🔓 Dana dilepas! Sedang diproses pencairan oleh Admin.");
-      renderApp();
-    };
-
-    // 6. Admin Mentransfer dan Menyelesaikan Transaksi secara Penuh. Status Loker: 'Selesai & Cair'
-    window.payoutWorkerByAdmin = function(jobId) {
-      const job = AppState.jobs.find(j => j.id === jobId);
-      if (!job) return;
-
-      AppState.jobs = AppState.jobs.map(j => {
-        if (j.id === jobId) {
-          const updatedJob = { ...j, status: "Selesai & Cair" };
-          if (db) {
-            setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'jobs', j.id), updatedJob)
-              .catch(e => console.log("Gagal update pekerjaan di cloud."));
-          }
-          return updatedJob;
-        }
-        return j;
-      });
-
-      // Bonus Poin Gotong Royong ke Pekerja
-      AppState.users = AppState.users.map(u => {
-        if (u.id === job.workerId) {
-          const updatedUser = { ...u, points: (u.points || 0) + 25 };
-          if (db) {
-            setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'users', u.id), updatedUser)
-              .catch(e => console.log("Gagal update poin warga di cloud."));
-          }
-          return updatedUser;
-        }
-        return u;
-      });
-
-      const relatedChat = AppState.chats.find(c => c.jobId === jobId);
-      if (relatedChat) {
-        relatedChat.messages.push({
-          senderId: "system",
-          text: `🎉 PENCAIRAN SELESAI! Admin Ahmad Nandar Suryadi telah sukses mentransfer upah bersih ke rekening Pekerja. Pekerja juga mendapatkan bonus +25 Poin Gotong Royong!`,
-          time: "Sistem"
-        });
-        if (db) {
-          setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'chats', relatedChat.id), relatedChat)
-            .catch(e => console.log("Gagal kirim pesan ke cloud."));
-        }
-      }
-
-      showToast("🎉 Hebat! Upah berhasil dicairkan ke Pekerja.");
-      renderApp();
-    };
-
-    // Modal Utilities
+    // --- STREAMING_CHUNK: Setup Modals Visibility Handlers ---
     window.openAuthModal = function(tabName) {
       AppState.authTab = tabName;
       setIsAuthModalOpen(true);
@@ -1020,9 +959,7 @@
       if (modal) {
         modal.style.display = "flex";
         const qrisImg = document.getElementById("qris-image-view");
-        if (qrisImg) {
-          qrisImg.src = AppState.qrisImage;
-        }
+        if (qrisImg) { qrisImg.src = AppState.qrisImage; }
       }
     };
 
@@ -1053,12 +990,13 @@
       return true;
     };
 
-    // Kirim Lowongan Pekerjaan Baru
+    // --- STREAMING_CHUNK: Handling Creation Forms ---
     window.handleCreateJobSubmit = function(e) {
       e.preventDefault();
       const title = document.getElementById("new-job-title").value;
       const category = document.getElementById("new-job-category").value;
       const budget = Number(document.getElementById("new-job-budget").value);
+      const paymentMethod = document.getElementById("new-job-payment-method").value;
       const desc = document.getElementById("new-job-desc").value;
 
       const newJobId = `job-${Date.now()}`;
@@ -1067,6 +1005,7 @@
         title,
         category,
         budget,
+        paymentMethod,
         posterId: AppState.currentUserId,
         description: desc,
         createdAt: "Baru saja",
@@ -1076,8 +1015,7 @@
 
       AppState.jobs.push(newJob);
       if (db) {
-        setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'jobs', newJobId), newJob)
-          .catch(e => console.log("Gagal membuat pekerjaan online"));
+        setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'jobs', newJobId), newJob);
       }
 
       document.getElementById("job-creation-modal").style.display = "none";
@@ -1085,7 +1023,6 @@
       renderApp();
     };
 
-    // Kirim Jasa Baru
     window.handleCreateTalentSubmit = function(e) {
       e.preventDefault();
       const skill = document.getElementById("new-talent-skill").value;
@@ -1103,8 +1040,7 @@
 
       AppState.talents.push(newTalent);
       if (db) {
-        setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'talents', newTalentId), newTalent)
-          .catch(e => console.log("Gagal membuat penawaran jasa online"));
+        setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'talents', newTalentId), newTalent);
       }
 
       document.getElementById("talent-creation-modal").style.display = "none";
@@ -1112,7 +1048,7 @@
       renderApp();
     };
 
-    // RENDERING ENGINE UTAMA
+    // --- STREAMING_CHUNK: CORE RENDERER ENGINE (COMPLYING WITH FLUID LAYOUTS) ---
     function renderApp() {
       try {
         const appDiv = document.getElementById("app");
@@ -1151,14 +1087,14 @@
               </div>
 
               <!-- INFO REKBER BOX -->
-              <div class="bg-gradient-to-r from-emerald-800 to-teal-800 text-white rounded-3xl p-5 sm:p-6 shadow-md border border-emerald-700/50 flex flex-col sm:flex-row items-center justify-between gap-4">
+              <div class="bg-gradient-to-r from-brandBlue-950 via-brandBlue-900 to-brandGreen-950 text-white rounded-3xl p-5 sm:p-6 shadow-md border border-brandBlue-900/50 flex flex-col sm:flex-row items-center justify-between gap-4">
                 <div class="space-y-1">
-                  <span class="bg-emerald-700 text-amber-300 text-[10px] font-black tracking-widest uppercase px-3 py-1 rounded-full border border-emerald-600">🛡️ Rekber Resmi Aktif</span>
+                  <span class="bg-gradient-to-r from-brandGreen-600 to-brandBlue-600 text-white text-[10px] font-black tracking-widest uppercase px-3 py-1 rounded-full border border-white/20">🛡️ Rekber Bersifat Opsional</span>
                   <h4 class="font-extrabold text-base sm:text-lg mt-2">Dukungan Transaksi Aman</h4>
-                  <p class="text-xs text-emerald-100 font-light max-w-xl">Kini setiap kesepakatan upah wajib melewati Rekber pengelola a.n Ahmad Nandar Suryadi. Pekerjaan baru dimulai setelah dana terkonfirmasi masuk oleh Admin!</p>
+                  <p class="text-xs text-sky-100 font-light max-w-xl">Pilih metode bayar saat memasang tugas. Anda dapat menggunakan layanan **Rekber Ahmad Nandar Suryadi** demi keamanan prima, atau **Bayar Langsung** secara mandiri (Tanpa Biaya Admin)!</p>
                 </div>
                 <div class="flex-shrink-0 bg-white/10 px-4 py-2.5 rounded-2xl text-center border border-white/10">
-                  <p class="text-[9px] uppercase tracking-wider text-emerald-200">Biaya Admin Rekber</p>
+                  <p class="text-[9px] uppercase tracking-wider text-sky-200">Biaya Admin Rekber</p>
                   <p class="text-lg font-black text-amber-300">Rp ${REKBER_ADMIN_FEE.toLocaleString('id-ID')}</p>
                 </div>
               </div>
@@ -1171,20 +1107,28 @@
 
                   let statusBadgeStyle = "bg-amber-50 text-amber-800 border-amber-100";
                   if (job.status === "Pembayaran Diverifikasi" || job.status === "Dana Ditahan (Mulai Kerja)") {
-                    statusBadgeStyle = "bg-emerald-50 text-emerald-800 border-emerald-100";
+                    statusBadgeStyle = "bg-brandBlue-50 text-brandBlue-800 border-brandBlue-100";
                   } else if (job.status === "Selesai & Cair") {
                     statusBadgeStyle = "bg-slate-100 text-slate-600 border-slate-200";
                   } else if (job.status.startsWith("Menunggu") || job.status.startsWith("Dana Siap")) {
                     statusBadgeStyle = "bg-sky-50 text-sky-800 border-sky-100";
                   }
 
+                  const isRekber = job.paymentMethod === "Rekber";
+                  const paymentBadge = isRekber 
+                    ? `<span class="bg-brandBlue-50 text-brandBlue-800 text-[10px] font-black uppercase tracking-wider px-3 py-1 rounded-full border border-brandBlue-100">🛡️ Rekber</span>`
+                    : `<span class="bg-brandGreen-50 text-brandGreen-800 text-[10px] font-black uppercase tracking-wider px-3 py-1 rounded-full border border-brandGreen-100">💸 Bayar Langsung</span>`;
+
                   return `
                     <div class="bg-white rounded-3xl border border-slate-200 p-6 flex flex-col justify-between hover:shadow-lg transition-all duration-200">
                       <div>
                         <div class="flex items-center justify-between mb-4">
-                          <span class="bg-emerald-50 text-emerald-800 text-[10px] font-black uppercase tracking-wider px-3 py-1 rounded-full border border-emerald-100">
-                            ${job.category}
-                          </span>
+                          <div class="flex items-center space-x-1.5">
+                            <span class="bg-slate-100 text-slate-700 text-[10px] font-bold uppercase tracking-wider px-2.5 py-1 rounded-full border">
+                              ${job.category}
+                            </span>
+                            ${paymentBadge}
+                          </div>
                           <div class="flex items-center gap-1.5">
                             <span class="text-[10px] px-3 py-1 rounded-full font-extrabold border ${statusBadgeStyle}">
                               ⚡ ${job.status}
@@ -1200,7 +1144,7 @@
 
                         <div class="bg-slate-50 rounded-2xl p-3 border border-slate-100 flex items-center justify-between mb-5">
                           <div class="flex items-center space-x-3">
-                            <img src="${poster.avatar}" onclick="openFullPhotoModal('${poster.avatar}', '${poster.name}')" class="w-10 h-10 rounded-full object-cover aspect-square border-2 border-emerald-500 shadow-sm cursor-zoom-in" alt="avatar" />
+                            <img src="${poster.avatar}" onclick="openFullPhotoModal('${poster.avatar}', '${poster.name}')" class="w-10 h-10 rounded-full object-cover aspect-square border-2 border-brandBlue-500 shadow-sm cursor-zoom-in" alt="avatar" />
                             <div>
                               <p class="text-xs font-bold text-slate-800 leading-none">${poster.name}</p>
                               <p class="text-[10px] text-slate-400 mt-1">Unit: ${poster.unit}</p>
@@ -1212,8 +1156,8 @@
 
                       <div class="border-t border-slate-100 pt-4 flex items-center justify-between">
                         <div>
-                          <p class="text-[10px] text-slate-400 uppercase font-bold tracking-wider">Tawaran Upah</p>
-                          <p class="text-base sm:text-lg font-black text-emerald-700">Rp ${job.budget.toLocaleString('id-ID')}</p>
+                          <p class="text-[10px] text-slate-400 uppercase font-bold tracking-wider">${isRekber ? 'Tawaran Upah (+Admin)' : 'Tawaran Upah Bersih'}</p>
+                          <p class="text-base sm:text-lg font-black text-brandBlue-800">Rp ${job.budget.toLocaleString('id-ID')}</p>
                         </div>
 
                         ${isMyOwnJob ? `
@@ -1223,7 +1167,7 @@
                             🔒 ${job.status}
                           </button>
                         ` : `
-                          <button onclick="initiateChatFromJob('${job.id}')" class="bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold px-4 py-2.5 rounded-xl text-xs transition shadow">
+                          <button onclick="initiateChatFromJob('${job.id}')" class="bg-gradient-to-r from-brandGreen-600 to-brandBlue-600 text-white font-extrabold px-4 py-2.5 rounded-xl text-xs transition shadow hover:opacity-95">
                             💬 Hubungi / Tawar
                           </button>
                         `}
@@ -1254,14 +1198,14 @@
                     <div class="bg-white rounded-3xl border border-slate-200 p-6 flex flex-col justify-between hover:shadow-lg transition-all duration-200">
                       <div>
                         <div class="flex items-center space-x-3 mb-4">
-                          <img src="${provider.avatar}" onclick="openFullPhotoModal('${provider.avatar}', '${provider.name}')" class="w-12 h-12 rounded-full object-cover aspect-square border-2 border-teal-400 shadow-sm cursor-zoom-in" alt="avatar" />
+                          <img src="${provider.avatar}" onclick="openFullPhotoModal('${provider.avatar}', '${provider.name}')" class="w-12 h-12 rounded-full object-cover aspect-square border-2 border-brandBlue-400 shadow-sm cursor-zoom-in" alt="avatar" />
                           <div>
                             <h4 class="font-bold text-slate-900 text-xs sm:text-sm leading-tight">${provider.name}</h4>
                             <p class="text-[10px] text-slate-400">Unit: ${provider.unit}</p>
                           </div>
                         </div>
 
-                        <div class="bg-teal-50 text-teal-800 text-xs font-bold px-3 py-1.5 rounded-xl inline-block mb-3 border border-teal-100">
+                        <div class="bg-sky-50 text-sky-800 text-xs font-bold px-3 py-1.5 rounded-xl inline-block mb-3 border border-sky-100">
                           🛠️ ${talent.skill}
                         </div>
                         <p class="text-slate-600 text-xs sm:text-sm leading-relaxed mb-6 font-light">${talent.description}</p>
@@ -1270,7 +1214,7 @@
                       ${isMyOwnTalent ? `
                         <span class="text-center text-xs text-slate-400 italic bg-slate-50 py-2.5 rounded-2xl border border-slate-100 block">Jasa Anda</span>
                       ` : `
-                        <button onclick="initiateChatFromJob('talent-inq-${talent.id}')" class="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold py-3 rounded-xl text-xs transition shadow-sm">
+                        <button onclick="initiateChatFromJob('talent-inq-${talent.id}')" class="w-full bg-gradient-to-r from-brandGreen-600 to-brandBlue-600 text-white font-extrabold py-3 rounded-xl text-xs transition shadow-sm hover:opacity-95">
                           💬 Tanya / Pesan Jasa
                         </button>
                       `}
@@ -1323,14 +1267,14 @@
                     const isSelected = AppState.activeChatId === c.id;
 
                     return `
-                      <button onclick="window.AppState.activeChatId = '${c.id}'; renderApp();" class="w-full p-4 text-left transition flex items-start space-x-3 text-xs ${isSelected ? 'bg-emerald-50 border-l-4 border-emerald-600' : 'hover:bg-slate-100'}">
+                      <button onclick="window.AppState.activeChatId = '${c.id}'; renderApp();" class="w-full p-4 text-left transition flex items-start space-x-3 text-xs ${isSelected ? 'bg-sky-50 border-l-4 border-brandBlue-600' : 'hover:bg-slate-100'}">
                         <img src="${other.avatar}" onclick="event.stopPropagation(); openFullPhotoModal('${other.avatar}', '${other.name}')" class="w-8 h-8 rounded-full object-cover aspect-square border cursor-zoom-in" alt="avatar" />
                         <div class="min-w-0 flex-grow">
                           <div class="flex justify-between items-center">
                             <span class="font-bold truncate text-slate-800">${other.name}</span>
                             <span class="text-[8px] text-slate-400">${lastMsg ? lastMsg.time : ""}</span>
                           </div>
-                          <p class="text-[9px] text-emerald-800 font-semibold truncate">${discussionTitle}</p>
+                          <p class="text-[9px] text-brandBlue-800 font-semibold truncate">${discussionTitle}</p>
                           <p class="text-[10px] text-slate-500 truncate mt-1">${lastMsg ? lastMsg.text : ""}</p>
                         </div>
                       </button>
@@ -1358,19 +1302,28 @@
                           <button onclick="markJobAsAgreed('${activeChat.id}')" class="bg-amber-500 hover:bg-amber-400 text-slate-950 font-black px-3 py-1.5 rounded-lg text-[9px] transition shadow-sm">🤝 Sepakati Pekerjaan</button>
                         ` : ""}
 
-                        <!-- 2. PEMBAYARAN KABAR SUDAH DI-TRANSFER OLEH POSTER -->
-                        ${chatJob.status === 'Menunggu Transfer Poster' && chatJob.posterId === AppState.currentUserId ? `
-                          <button onclick="confirmPaymentToRekber('${activeChat.id}')" class="bg-blue-600 hover:bg-blue-500 text-white font-black px-3 py-1.5 rounded-lg text-[9px] transition shadow-sm">💰 Saya Sudah Transfer</button>
-                        ` : ""}
-
-                        <!-- 3. PEKERJA MELAPORKAN PEKERJAAN TELAH SELESAI -->
-                        ${chatJob.status === 'Dana Ditahan (Mulai Kerja)' && chatJob.workerId === AppState.currentUserId ? `
+                        <!-- JALUR BAYAR LANGSUNG: LAPOR SELESAI & KONFIRMASI LUNAS -->
+                        ${chatJob.paymentMethod === 'Langsung' && chatJob.status === 'Sedang Dikerjakan' && chatJob.workerId === AppState.currentUserId ? `
                           <button onclick="reportJobFinishedByWorker('${activeChat.id}')" class="bg-indigo-600 hover:bg-indigo-500 text-white font-black px-3 py-1.5 rounded-lg text-[9px] transition shadow-sm">🏁 Laporkan Selesai</button>
                         ` : ""}
 
-                        <!-- 4. POSTER MELEPAS DANA REKBER KE PEKERJA -->
-                        ${chatJob.status === 'Menunggu Lepas Dana' && chatJob.posterId === AppState.currentUserId ? `
-                          <button onclick="releaseEscrowToWorker('${activeChat.id}')" class="bg-emerald-600 hover:bg-emerald-700 text-white font-black px-3 py-1.5 rounded-lg text-[9px] transition shadow-sm">🔓 Konfirmasi & Lepas Dana</button>
+                        ${chatJob.paymentMethod === 'Langsung' && chatJob.status === 'Menunggu Pelunasan Mandiri' && chatJob.posterId === AppState.currentUserId ? `
+                          <button onclick="confirmDirectPaymentCleared('${activeChat.id}')" class="bg-brandBlue-600 hover:bg-brandBlue-700 text-white font-black px-3 py-1.5 rounded-lg text-[9px] transition shadow-sm">✓ Konfirmasi Pembayaran Lunas</button>
+                        ` : ""}
+
+                        <!-- JALUR REKBER: PEMBAYARAN KABAR SUDAH DI-TRANSFER OLEH POSTER -->
+                        ${chatJob.paymentMethod === 'Rekber' && chatJob.status === 'Menunggu Transfer Poster' && chatJob.posterId === AppState.currentUserId ? `
+                          <button onclick="confirmPaymentToRekber('${activeChat.id}')" class="bg-brandBlue-600 hover:bg-brandBlue-500 text-white font-black px-3 py-1.5 rounded-lg text-[9px] transition shadow-sm">💰 Saya Sudah Transfer</button>
+                        ` : ""}
+
+                        <!-- JALUR REKBER: PEKERJA MELAPORKAN PEKERJAAN TELAH SELESAI -->
+                        ${chatJob.paymentMethod === 'Rekber' && chatJob.status === 'Dana Ditahan (Mulai Kerja)' && chatJob.workerId === AppState.currentUserId ? `
+                          <button onclick="reportJobFinishedByWorker('${activeChat.id}')" class="bg-indigo-600 hover:bg-indigo-500 text-white font-black px-3 py-1.5 rounded-lg text-[9px] transition shadow-sm">🏁 Laporkan Selesai</button>
+                        ` : ""}
+
+                        <!-- JALUR REKBER: POSTER MELEPAS DANA REKBER KE PEKERJA -->
+                        ${chatJob.paymentMethod === 'Rekber' && chatJob.status === 'Menunggu Lepas Dana' && chatJob.posterId === AppState.currentUserId ? `
+                          <button onclick="releaseEscrowToWorker('${activeChat.id}')" class="bg-brandBlue-600 hover:bg-brandBlue-700 text-white font-black px-3 py-1.5 rounded-lg text-[9px] transition shadow-sm">🔓 Konfirmasi & Lepas Dana</button>
                         ` : ""}
                       </div>
                     ` : ""}
@@ -1378,15 +1331,40 @@
 
                   <!-- AREA ESCROW DETAIL DI ATAS CHAT (JIKA ADA KERJAAN) -->
                   ${chatJob && chatJob.status !== 'Aktif' ? `
-                    <div class="p-4 bg-amber-50 border-b border-amber-200 text-xs text-amber-900 space-y-2">
+                    <div class="p-4 ${chatJob.paymentMethod === 'Rekber' ? 'bg-sky-50 border-sky-200 text-sky-900' : 'bg-brandBlue-50 border-brandBlue-200 text-brandBlue-900'} border-b text-xs space-y-2">
                       <div class="flex justify-between items-center">
-                        <span class="font-extrabold">🛡️ Alur Pembayaran Rekber Aman:</span>
-                        <span class="bg-amber-200 text-amber-900 font-extrabold px-2 py-0.5 rounded-full text-[9px] tracking-wide uppercase">${chatJob.status}</span>
+                        <span class="font-extrabold">${chatJob.paymentMethod === 'Rekber' ? '🛡️ Alur Pembayaran Rekber Aman:' : '💸 Alur Pembayaran Mandiri (Tanpa Rekber):'}</span>
+                        <span class="bg-white/70 font-extrabold px-2 py-0.5 rounded-full text-[9px] tracking-wide uppercase">${chatJob.status}</span>
                       </div>
                       
-                      <!-- FLOW MENUNGGU TRANSFER POSTER -->
-                      ${chatJob.status === 'Menunggu Transfer Poster' ? `
-                        <div class="bg-white p-3.5 rounded-2xl border border-amber-200 space-y-3 shadow-inner">
+                      <!-- JALUR LANGSUNG: ALUR SEDANG DIKERJAKAN -->
+                      ${chatJob.paymentMethod === 'Langsung' && chatJob.status === 'Sedang Dikerjakan' ? `
+                        <p class="text-[11px] font-light leading-relaxed">
+                          Pekerjaan sedang berlangsung dengan kesepakatan **Pembayaran Langsung**. Setelah tugas dinyatakan selesai oleh Pekerja, Pemberi Kerja akan membayar langsung (tunai atau transfer) secara mandiri.
+                        </p>
+                      ` : ""}
+
+                      <!-- JALUR LANGSUNG: ALUR MENUNNGGU PELUNASAN MANDIRI -->
+                      ${chatJob.paymentMethod === 'Langsung' && chatJob.status === 'Menunggu Pelunasan Mandiri' ? `
+                        <div class="bg-white p-3.5 rounded-2xl border border-brandBlue-200 space-y-2.5">
+                          <p class="font-bold text-slate-800 text-[11px]">🏁 Pekerjaan Selesai! Mohon Selesaikan Pembayaran:</p>
+                          <p class="text-[11px] text-slate-600 font-light leading-relaxed">
+                            Pekerja telah selesai melakukan tugasnya. Harap Pemberi Kerja membayar langsung uang sebesar **Rp ${chatJob.budget.toLocaleString('id-ID')}** secara mandiri ke rekening terdaftar Pekerja berikut:
+                          </p>
+                          <div class="bg-slate-50 p-2.5 rounded-xl border text-[11px]">
+                            <p class="text-slate-400 font-semibold uppercase text-[8px] mb-1">Rekening Pekerja (${otherParty.name}):</p>
+                            <p class="font-bold text-slate-800"><span class="text-teal-700">[${otherParty.workerBankName || 'Belum Diisi'}]</span> ${otherParty.workerBankNumber || 'Kosong'}</p>
+                            <p class="text-slate-500 font-light text-[10px]">a.n ${otherParty.workerBankOwner || 'Kosong'}</p>
+                          </div>
+                          ${chatJob.posterId === AppState.currentUserId ? `
+                            <button onclick="confirmDirectPaymentCleared('${activeChat.id}')" class="bg-brandBlue-600 hover:bg-brandBlue-700 text-white font-extrabold px-4 py-2 rounded-xl text-[10px] transition shadow">Saya Sudah Bayar Lunas</button>
+                          ` : `<span class="text-slate-400 text-[10px] italic">Meunnggu pembayaran dikirim & dikonfirmasi oleh Poster...</span>`}
+                        </div>
+                      ` : ""}
+
+                      <!-- JALUR REKBER: FLOW MENUNGGU TRANSFER POSTER -->
+                      ${chatJob.paymentMethod === 'Rekber' && chatJob.status === 'Menunggu Transfer Poster' ? `
+                        <div class="bg-white p-3.5 rounded-2xl border border-sky-200 space-y-3 shadow-inner">
                           <p class="font-bold text-slate-800">Petunjuk Pembayaran Pemberi Kerja:</p>
                           <p class="text-[11px] text-slate-600 leading-relaxed font-light">Transfer total tagihan di bawah ini ke salah satu rekening bank resmi pengelola **Ahmad Nandar Suryadi**:</p>
                           
@@ -1394,7 +1372,7 @@
                             ${REKBER_ACCOUNTS.map(acc => `
                               <div class="bg-slate-50 border p-2.5 rounded-xl">
                                 <span class="font-bold block text-slate-700 text-[10px]">${acc.bank}</span>
-                                <span class="text-emerald-700 font-black block my-1">${acc.number}</span>
+                                <span class="text-brandBlue-700 font-black block my-1">${acc.number}</span>
                                 <span class="text-[9px] text-slate-400 leading-none">a.n ${acc.holder}</span>
                               </div>
                             `).join("")}
@@ -1404,48 +1382,48 @@
                             <div>
                               <p class="font-normal text-slate-400 text-[10px]">Upah Pekerja: Rp ${chatJob.budget.toLocaleString('id-ID')}</p>
                               <p class="font-normal text-slate-400 text-[10px]">Biaya Admin: Rp ${REKBER_ADMIN_FEE.toLocaleString('id-ID')}</p>
-                              <p class="text-emerald-700 mt-0.5">Total Transfer: Rp ${(chatJob.budget + REKBER_ADMIN_FEE).toLocaleString('id-ID')}</p>
+                              <p class="text-brandBlue-700 mt-0.5">Total Transfer: Rp ${(chatJob.budget + REKBER_ADMIN_FEE).toLocaleString('id-ID')}</p>
                             </div>
                             ${chatJob.posterId === AppState.currentUserId ? `
-                              <button onclick="confirmPaymentToRekber('${activeChat.id}')" class="bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold px-4 py-2 rounded-xl text-[10px] transition shadow">Saya Sudah Kirim</button>
+                              <button onclick="confirmPaymentToRekber('${activeChat.id}')" class="bg-brandBlue-600 hover:bg-brandBlue-700 text-white font-extrabold px-4 py-2 rounded-xl text-[10px] transition shadow">Saya Sudah Kirim</button>
                             ` : `<span class="text-slate-400 text-[10px] italic">Menunggu Poster mentransfer...</span>`}
                           </div>
                         </div>
                       ` : ""}
 
-                      <!-- FLOW MENUNGGU VERIFIKASI ADMIN -->
-                      ${chatJob.status === 'Menunggu Verifikasi Admin' ? `
+                      <!-- JALUR REKBER: FLOW MENUNGGU VERIFIKASI ADMIN -->
+                      ${chatJob.paymentMethod === 'Rekber' && chatJob.status === 'Menunggu Verifikasi Admin' ? `
                         <p class="text-[11px] text-slate-600 font-light">
                           Pemberi kerja telah mengonfirmasi pembayaran. Dana sebesar **Rp ${(chatJob.budget + REKBER_ADMIN_FEE).toLocaleString('id-ID')}** sedang diproses cek mutasi oleh Admin. Pekerja harap tidak memulai pekerjaan sebelum status berubah menjadi **"Dana Ditahan (Mulai Kerja)"**.
                         </p>
                       ` : ""}
 
-                      <!-- FLOW DANA DITAHAN (MULAI KERJA) -->
-                      ${chatJob.status === 'Dana Ditahan (Mulai Kerja)' ? `
-                        <div class="bg-white p-3 rounded-xl border border-emerald-200">
-                          <p class="text-[11px] text-emerald-800 font-bold">✓ DANA AMAN DI REKBER!</p>
+                      <!-- JALUR REKBER: FLOW DANA DITAHAN (MULAI KERJA) -->
+                      ${chatJob.paymentMethod === 'Rekber' && chatJob.status === 'Dana Ditahan (Mulai Kerja)' ? `
+                        <div class="bg-white p-3 rounded-xl border border-sky-200">
+                          <p class="text-[11px] text-brandBlue-850 font-bold">✓ DANA AMAN DI REKBER!</p>
                           <p class="text-[11px] text-slate-600 mt-1 font-light leading-relaxed">
                             Dana upah Pekerja sudah aman dipegang oleh Admin. Pekerja silakan melakukan tugas dengan maksimal. Jika tugas selesai, Pekerja silakan klik tombol **"Laporkan Selesai"** di kanan atas obrolan.
                           </p>
                         </div>
                       ` : ""}
 
-                      <!-- FLOW MENUNGGU LEPAS DANA -->
-                      ${chatJob.status === 'Menunggu Lepas Dana' ? `
-                        <div class="bg-white p-3 rounded-xl border border-amber-200 space-y-2">
+                      <!-- JALUR REKBER: FLOW MENUNGGU LEPAS DANA -->
+                      ${chatJob.paymentMethod === 'Rekber' && chatJob.status === 'Menunggu Lepas Dana' ? `
+                        <div class="bg-white p-3 rounded-xl border border-sky-200 space-y-2">
                           <p class="text-[11px] text-slate-800 font-bold">Tugas Dilaporkan Selesai oleh Pekerja:</p>
                           <p class="text-[11px] text-slate-600 font-light leading-relaxed">
                             Pemberi Kerja silakan memeriksa langsung unit / hasil kerja. Jika semua sudah oke, silakan lepas dana agar admin mentransfer upah langsung ke rekening Pekerja.
                           </p>
                           ${chatJob.posterId === AppState.currentUserId ? `
-                            <button onclick="releaseEscrowToWorker('${activeChat.id}')" class="bg-emerald-600 hover:bg-emerald-700 text-white font-bold px-4 py-1.5 rounded-lg text-[10px] transition shadow">Ya, Lepas Dana Sekarang</button>
+                            <button onclick="releaseEscrowToWorker('${activeChat.id}')" class="bg-brandBlue-600 hover:bg-brandBlue-700 text-white font-bold px-4 py-1.5 rounded-lg text-[10px] transition shadow">Ya, Lepas Dana Sekarang</button>
                           ` : ""}
                         </div>
                       ` : ""}
 
-                      <!-- FLOW DANA SIAP CAIR -->
-                      ${chatJob.status === 'Dana Siap Cair' ? `
-                        <p class="text-[11px] text-emerald-800 font-bold">
+                      <!-- JALUR REKBER: FLOW DANA SIAP CAIR -->
+                      ${chatJob.paymentMethod === 'Rekber' && chatJob.status === 'Dana Siap Cair' ? `
+                        <p class="text-[11px] text-sky-850 font-bold">
                           ✓ Kesepakatan Selesai! Admin Ahmad Nandar Suryadi sedang mentransfer upah bersih sebesar **Rp ${chatJob.budget.toLocaleString('id-ID')}** ke nomor rekening Pekerja. Terima kasih atas kerja samanya!
                         </p>
                       ` : ""}
@@ -1459,7 +1437,7 @@
                       
                       if (isSystem) {
                         return `
-                          <div class="bg-amber-50 border border-amber-200 p-3 rounded-2xl text-center text-[10px] text-amber-900 max-w-md mx-auto my-2">
+                          <div class="bg-sky-50 border border-sky-100 p-3 rounded-2xl text-center text-[10px] text-sky-900 max-w-md mx-auto my-2">
                             ${m.text}
                           </div>
                         `;
@@ -1467,7 +1445,7 @@
 
                       return `
                         <div class="flex ${isMe ? 'justify-end' : 'justify-start'}">
-                          <div class="p-3 rounded-2xl text-xs sm:text-sm max-w-xs sm:max-w-md ${isMe ? 'bg-emerald-600 text-white rounded-tr-none shadow' : 'bg-white border text-slate-800 rounded-tl-none shadow-sm'}">
+                          <div class="p-3 rounded-2xl text-xs sm:text-sm max-w-xs sm:max-w-md ${isMe ? 'bg-gradient-to-r from-brandGreen-600 to-brandBlue-600 text-white rounded-tr-none shadow' : 'bg-white border text-slate-800 rounded-tl-none shadow-sm'}">
                             <p class="leading-relaxed">${m.text}</p>
                             <span class="block text-[8px] text-right mt-1 opacity-70">${m.time}</span>
                           </div>
@@ -1481,10 +1459,10 @@
                       type="text"
                       id="chat-message-input"
                       placeholder="Ketik pesan kesepakatan kerja..."
-                      class="flex-grow px-4 py-2.5 border rounded-xl text-xs sm:text-sm focus:outline-none focus:ring-1 focus:ring-emerald-500"
+                      class="flex-grow px-4 py-2.5 border rounded-xl text-xs sm:text-sm focus:outline-none focus:ring-1 focus:ring-brandBlue-500"
                       required
                     />
-                    <button type="submit" class="bg-emerald-600 hover:bg-emerald-700 text-white font-bold px-4 py-2.5 rounded-xl text-xs sm:text-sm transition shadow-sm">Kirim</button>
+                    <button type="submit" class="bg-gradient-to-r from-brandGreen-600 to-brandBlue-600 text-white font-bold px-4 py-2.5 rounded-xl text-xs sm:text-sm transition shadow-sm hover:opacity-95">Kirim</button>
                   </form>
                 ` : `
                   <div class="h-full flex flex-col justify-center items-center p-12 text-slate-400 text-center space-y-2">
@@ -1501,14 +1479,14 @@
             <div class="max-w-4xl mx-auto grid grid-cols-1 md:grid-cols-12 gap-8">
               <div class="md:col-span-4 bg-white border border-slate-200 rounded-3xl p-6 text-center space-y-5 h-fit shadow-sm animate-fade-in">
                 <div class="relative inline-block">
-                  <img src="${AppState.editAvatar || currentUserData.avatar}" onclick="openFullPhotoModal('${AppState.editAvatar || currentUserData.avatar}', '${currentUserData.name}')" class="w-24 h-24 rounded-full object-cover aspect-square border-4 border-emerald-500 shadow-md mx-auto cursor-zoom-in" alt="avatar" />
-                  ${currentUserData.verified ? `<span class="absolute bottom-0 right-1 bg-emerald-100 text-emerald-800 text-[9px] font-black px-2 py-0.5 rounded-full border border-emerald-300">🛡️ Terverifikasi</span>` : ""}
+                  <img src="${AppState.editAvatar || currentUserData.avatar}" onclick="openFullPhotoModal('${AppState.editAvatar || currentUserData.avatar}', '${currentUserData.name}')" class="w-24 h-24 rounded-full object-cover aspect-square border-4 border-brandBlue-500 shadow-md mx-auto cursor-zoom-in" alt="avatar" />
+                  ${currentUserData.verified ? `<span class="absolute bottom-0 right-1 bg-brandBlue-100 text-brandBlue-800 text-[9px] font-black px-2 py-0.5 rounded-full border border-brandBlue-300">🛡️ Terverifikasi</span>` : ""}
                 </div>
                 
                 <div>
                   <h3 class="text-lg font-extrabold text-slate-900">${currentUserData.name}</h3>
                   <p class="text-xs text-slate-500 mt-1">Unit: ${currentUserData.unit}</p>
-                  <span class="inline-block mt-2 bg-emerald-50 text-emerald-800 font-bold text-xs px-3 py-1 rounded-full border border-emerald-200">
+                  <span class="inline-block mt-2 bg-brandBlue-50 text-brandBlue-800 font-bold text-xs px-3 py-1 rounded-full border border-brandBlue-200">
                     🏆 ${currentUserData.points} Poin Gotong Royong
                   </span>
                 </div>
@@ -1529,13 +1507,13 @@
                   <label class="block text-xs font-bold text-slate-600 uppercase tracking-wider">Foto Profil Warga</label>
                   <div class="flex flex-col sm:flex-row sm:items-center gap-4 bg-slate-50 p-4 rounded-2xl border border-slate-200">
                     <div class="flex-shrink-0">
-                      <img src="${AppState.editAvatar || currentUserData.avatar}" class="w-16 h-16 rounded-full object-cover aspect-square border-2 border-emerald-500" alt="avatar" />
+                      <img src="${AppState.editAvatar || currentUserData.avatar}" class="w-16 h-16 rounded-full object-cover aspect-square border-2 border-brandBlue-500" alt="avatar" />
                     </div>
                     <div class="space-y-1">
                       <p class="text-xs font-bold text-slate-700">Unggah Foto Baru</p>
                       <div class="pt-1">
                         <input type="file" id="profile-image-upload-input" accept="image/*" class="hidden" onchange="handleProfileImageUpload(event)" />
-                        <label for="profile-image-upload-input" class="inline-block bg-emerald-700 hover:bg-emerald-600 text-white font-extrabold text-xs px-4 py-2 rounded-xl cursor-pointer transition shadow-sm">
+                        <label for="profile-image-upload-input" class="inline-block bg-gradient-to-r from-brandGreen-600 to-brandBlue-600 text-white font-extrabold text-xs px-4 py-2 rounded-xl cursor-pointer transition shadow-sm hover:opacity-95">
                           📷 Pilih Berkas Foto
                         </label>
                       </div>
@@ -1559,23 +1537,21 @@
                   <input type="text" id="edit-password" value="${AppState.editPassword}" class="w-full px-3.5 py-2.5 border rounded-xl text-xs bg-slate-50 focus:outline-none" required />
                 </div>
 
-                <!-- FORM REKENING PENCAIRAN WAHIB UNTUK PEKERJA -->
-                <div class="border-t border-slate-100 pt-4 space-y-3">
-                  <h4 class="font-bold text-xs text-slate-700">💼 Rekening Bank / E-Wallet Pencairan Upah (Wajib diisi Pekerja)</h4>
-                  <p class="text-[11px] text-slate-400 font-light">Upah dari Rekber akan ditransfer oleh Admin ke rekening terdaftar di bawah ini saat pekerjaan dinyatakan selesai.</p>
-                  
+                <div class="border-t border-slate-150 pt-4 space-y-3">
+                  <h4 class="font-bold text-xs text-brandBlue-900">💳 Rekening Anda (Untuk Menerima Pembayaran)</h4>
+                  <p class="text-[11px] text-slate-500 font-light">Harap diisi dengan benar agar Admin/Poster dapat mentransfer upah Anda saat pekerjaan selesai.</p>
                   <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
                     <div>
-                      <label class="block text-[10px] font-bold text-slate-500 uppercase mb-1">Nama Bank / E-Wallet</label>
-                      <input type="text" id="edit-bank-name" placeholder="Contoh: BCA, Seabank, GoPay" value="${AppState.editWorkerBankName}" class="w-full px-3.5 py-2.5 border rounded-xl text-xs bg-slate-50 focus:outline-none" />
+                      <label class="block text-[10px] font-bold text-slate-500 uppercase mb-1">Nama Bank *</label>
+                      <input type="text" id="worker-bank-name" value="${AppState.workerBankName}" placeholder="Contoh: BCA, Seabank" class="w-full px-3.5 py-2.5 border rounded-xl text-xs bg-slate-50 focus:outline-none" />
                     </div>
                     <div>
-                      <label class="block text-[10px] font-bold text-slate-500 uppercase mb-1">Nomor Rekening / HP</label>
-                      <input type="text" id="edit-bank-number" placeholder="Nomor rekening" value="${AppState.editWorkerBankNumber}" class="w-full px-3.5 py-2.5 border rounded-xl text-xs bg-slate-50 focus:outline-none" />
+                      <label class="block text-[10px] font-bold text-slate-500 uppercase mb-1">Nomor Rekening *</label>
+                      <input type="text" id="worker-bank-number" value="${AppState.workerBankNumber}" placeholder="Contoh: 123456789" class="w-full px-3.5 py-2.5 border rounded-xl text-xs bg-slate-50 focus:outline-none" />
                     </div>
                     <div>
-                      <label class="block text-[10px] font-bold text-slate-500 uppercase mb-1">Nama Pemilik Rekening</label>
-                      <input type="text" id="edit-bank-owner" placeholder="Nama lengkap pemilik" value="${AppState.editWorkerBankOwner}" class="w-full px-3.5 py-2.5 border rounded-xl text-xs bg-slate-50 focus:outline-none" />
+                      <label class="block text-[10px] font-bold text-slate-500 uppercase mb-1">Nama Pemilik *</label>
+                      <input type="text" id="worker-bank-owner" value="${AppState.workerBankOwner}" placeholder="Contoh: Budi Santoso" class="w-full px-3.5 py-2.5 border rounded-xl text-xs bg-slate-50 focus:outline-none" />
                     </div>
                   </div>
                 </div>
@@ -1596,116 +1572,110 @@
                   </div>
                 </div>
 
-                <button type="submit" class="w-full bg-emerald-700 hover:bg-emerald-600 text-white font-extrabold py-3 rounded-2xl text-sm transition shadow-md">
-                  Simpan Perubahan Profil & Rekening 💾
+                <button type="submit" class="w-full bg-gradient-to-r from-brandGreen-600 to-brandBlue-600 text-white font-extrabold py-3 rounded-2xl text-sm transition shadow-md hover:opacity-95">
+                  Simpan Perubahan Profil 💾
                 </button>
               </form>
             </div>
           `;
         } else if (AppState.activeTab === "admin" && currentUserData?.role === 'admin') {
-          // FILTER UNTUK DASHBOARD REKBER ADMIN AHMAD NANDAR
-          const pendingVerifications = AppState.jobs.filter(j => j.status === "Menunggu Verifikasi Admin");
-          const pendingPayouts = AppState.jobs.filter(j => j.status === "Dana Siap Cair");
-
           contentHtml = `
             <div class="space-y-8">
-              <div class="bg-amber-500/10 border border-amber-200 p-6 rounded-2xl flex items-center space-x-3 text-amber-800 animate-fade-in">
+              <div class="bg-brandBlue-500/10 border border-brandBlue-200 p-6 rounded-2xl flex items-center space-x-3 text-brandBlue-850 animate-fade-in">
                 <span class="text-2xl">🔒</span>
                 <div>
-                  <h4 class="font-bold text-sm">Selamat datang, edhos (Ahmad Nandar Suryadi - Admin)</h4>
+                  <h4 class="font-bold text-sm">Selamat datang, edhos (Admin)</h4>
                   <p class="text-xs font-light text-slate-600">Manajemen warga apartemen Menara Samawa & Menara Swasana.</p>
                 </div>
               </div>
 
-              <!-- 🛡️ DASHBOARD KEUANGAN REKBER (ADMIN) -->
-              <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-                
-                <!-- KOTAK 1: VERIFIKASI PEMBAYARAN MASUK -->
-                <div class="bg-white rounded-3xl border border-slate-200 p-6 shadow-sm space-y-4">
-                  <h3 class="font-extrabold text-slate-900 text-sm flex items-center gap-2">
-                    <span class="bg-amber-100 p-1.5 rounded-xl text-xs">💰</span>
-                    Perlu Verifikasi Transfer Masuk (${pendingVerifications.length})
-                  </h3>
-                  <p class="text-xs text-slate-400 font-light">Cek mutasi rekening BCA/DKI/Seabank Anda. Jika sudah masuk sejumlah upah + biaya admin, klik tombol verifikasi di bawah ini.</p>
-                  
-                  <div class="space-y-3.5 pt-1">
-                    ${pendingVerifications.map(job => {
-                      const poster = getPosterDetail(job.posterId);
-                      const worker = getPosterDetail(job.workerId);
-                      const totalTransfer = job.budget + REKBER_ADMIN_FEE;
-
-                      return `
-                        <div class="bg-slate-50 border border-slate-150 p-4 rounded-2xl text-xs space-y-3">
-                          <div class="flex justify-between items-start">
-                            <div>
-                              <h4 class="font-bold text-slate-800">${job.title}</h4>
-                              <p class="text-[10px] text-slate-400 mt-1">Oleh: ${poster.name} (${poster.unit})</p>
-                              <p class="text-[10px] text-slate-400">Pekerja: ${worker.name} (${worker.unit})</p>
-                            </div>
-                            <span class="bg-amber-100 text-amber-900 px-2 py-0.5 rounded-full font-black text-[9px] uppercase">Menunggu Cek</span>
-                          </div>
-                          
-                          <div class="flex items-center justify-between border-t border-slate-200 pt-2.5">
-                            <div>
-                              <p class="text-[9px] text-slate-400 uppercase font-semibold">Harus Masuk (Upah+Admin):</p>
-                              <p class="text-sm font-black text-emerald-700">Rp ${totalTransfer.toLocaleString('id-ID')}</p>
-                            </div>
-                            <button onclick="verifyRekberPaymentByAdmin('${job.id}')" class="bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold px-3.5 py-2 rounded-xl text-[10px] transition shadow">
-                              Verifikasi Dana Masuk ✓
-                            </button>
-                          </div>
-                        </div>
-                      `;
-                    }).join("")}
-                    ${pendingVerifications.length === 0 ? `<p class="text-slate-400 text-center py-6 text-xs font-light">Tidak ada verifikasi pembayaran tertunda.</p>` : ""}
-                  </div>
+              <!-- VERIFIKASI REKBER TRANSFER MASUK (ADMIN ONLY) -->
+              <div class="bg-white rounded-3xl border p-6 shadow-sm">
+                <h3 class="font-extrabold text-slate-950 mb-4 text-sm">📥 1. Perlu Verifikasi Transfer Masuk (Poster)</h3>
+                <div class="overflow-x-auto text-xs">
+                  <table class="w-full text-left">
+                    <thead>
+                      <tr class="bg-slate-50 text-slate-500 uppercase text-[9px] border-b">
+                        <th class="p-3">Pekerjaan</th>
+                        <th class="p-3">Dari Poster</th>
+                        <th class="p-3">Total Tagihan (+Admin)</th>
+                        <th class="p-3 text-center">Aksi Mutasi</th>
+                      </tr>
+                    </thead>
+                    <tbody class="divide-y">
+                      ${AppState.jobs.filter(j => j.status === 'Menunggu Verifikasi Admin' && j.paymentMethod === 'Rekber').map(job => {
+                        const poster = getPosterDetail(job.posterId);
+                        const chatRef = AppState.chats.find(c => c.jobId === job.id);
+                        return `
+                          <tr>
+                            <td class="p-3 font-bold text-slate-800">${job.title}</td>
+                            <td class="p-3">
+                              <p class="font-semibold">${poster.name}</p>
+                              <p class="text-[10px] text-slate-400">Unit: ${poster.unit}</p>
+                            </td>
+                            <td class="p-3 font-bold text-brandBlue-700">Rp ${(job.budget + REKBER_ADMIN_FEE).toLocaleString('id-ID')}</td>
+                            <td class="p-3 text-center">
+                              <button onclick="approveRekberTransferByAdmin('${job.id}', '${chatRef?.id}')" class="bg-gradient-to-r from-brandGreen-600 to-brandBlue-600 hover:opacity-90 text-white font-bold px-3 py-1.5 rounded-lg text-[10px] shadow">
+                                ✓ Mutasi Masuk & Izinkan Mulai Kerja
+                              </button>
+                            </td>
+                          </tr>
+                        `;
+                      }).join("")}
+                      ${AppState.jobs.filter(j => j.status === 'Menunggu Verifikasi Admin' && j.paymentMethod === 'Rekber').length === 0 ? `
+                        <tr><td colspan="4" class="text-center text-slate-400 py-4 text-[11px] font-light">Tidak ada verifikasi transfer masuk tertunda.</td></tr>
+                      ` : ""}
+                    </tbody>
+                  </table>
                 </div>
+              </div>
 
-                <!-- KOTAK 2: PERLU PENCAIRAN UPAH KE PEKERJA -->
-                <div class="bg-white rounded-3xl border border-slate-200 p-6 shadow-sm space-y-4">
-                  <h3 class="font-extrabold text-slate-900 text-sm flex items-center gap-2">
-                    <span class="bg-emerald-100 p-1.5 rounded-xl text-xs">💸</span>
-                    Perlu Transfer Cair ke Pekerja (${pendingPayouts.length})
-                  </h3>
-                  <p class="text-xs text-slate-400 font-light">Tugas telah disetujui Poster. Silakan transfer uang upah bersih berikut ke rekening pekerja di bawah, lalu klik konfirmasi.</p>
-                  
-                  <div class="space-y-3.5 pt-1">
-                    ${pendingPayouts.map(job => {
-                      const worker = getPosterDetail(job.workerId);
-
-                      return `
-                        <div class="bg-slate-50 border border-slate-150 p-4 rounded-2xl text-xs space-y-3">
-                          <div class="flex justify-between items-start">
-                            <div>
-                              <h4 class="font-bold text-slate-800">${job.title}</h4>
-                              <p class="text-[10px] text-emerald-800 font-semibold mt-1">Pekerja: ${worker.name} (${worker.unit})</p>
-                            </div>
-                            <span class="bg-emerald-100 text-emerald-900 px-2 py-0.5 rounded-full font-black text-[9px] uppercase">Siap Cair</span>
-                          </div>
-
-                          <!-- DETAIL REKENING TUJUAN TRANSFER -->
-                          <div class="bg-white p-2.5 rounded-xl border space-y-1 text-[11px] leading-relaxed">
-                            <p class="text-slate-400 uppercase tracking-wider font-bold text-[8px]">Rekening Tujuan:</p>
-                            <p class="text-slate-800 font-bold"><span class="text-emerald-700 font-black">[${worker.workerBankName || 'Belum Diisi'}]</span> ${worker.workerBankNumber || 'No Rek Kosong'}</p>
-                            <p class="text-slate-500 font-medium">a.n ${worker.workerBankOwner || 'Nama Kosong'}</p>
-                          </div>
-                          
-                          <div class="flex items-center justify-between border-t border-slate-200 pt-2.5">
-                            <div>
-                              <p class="text-[9px] text-slate-400 uppercase font-semibold">Nominal Transfer (Upah Bersih):</p>
-                              <p class="text-sm font-black text-emerald-700">Rp ${job.budget.toLocaleString('id-ID')}</p>
-                            </div>
-                            <button onclick="payoutWorkerByAdmin('${job.id}')" class="bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold px-3.5 py-2 rounded-xl text-[10px] transition shadow">
-                              Konfirmasi Selesai Cair ✓
-                            </button>
-                          </div>
-                        </div>
-                      `;
-                    }).join("")}
-                    ${pendingPayouts.length === 0 ? `<p class="text-slate-400 text-center py-6 text-xs font-light">Tidak ada penarikan upah tertunda.</p>` : ""}
-                  </div>
+              <!-- TRANSFER CAIR KE REKENING PEKERJA (ADMIN ONLY) -->
+              <div class="bg-white rounded-3xl border p-6 shadow-sm">
+                <h3 class="font-extrabold text-slate-950 mb-4 text-sm">📤 2. Perlu Transfer Cair ke Pekerja</h3>
+                <div class="overflow-x-auto text-xs">
+                  <table class="w-full text-left">
+                    <thead>
+                      <tr class="bg-slate-50 text-slate-500 uppercase text-[9px] border-b">
+                        <th class="p-3">Pekerjaan</th>
+                        <th class="p-3">Nama Pekerja</th>
+                        <th class="p-3">Data Rekening Tujuan</th>
+                        <th class="p-3">Upah Bersih Cair</th>
+                        <th class="p-3 text-center">Aksi Transfer</th>
+                      </tr>
+                    </thead>
+                    <tbody class="divide-y">
+                      ${AppState.jobs.filter(j => j.status === 'Dana Siap Cair' && j.paymentMethod === 'Rekber').map(job => {
+                        const worker = getPosterDetail(job.workerId);
+                        return `
+                          <tr>
+                            <td class="p-3 font-bold text-slate-800">${job.title}</td>
+                            <td class="p-3">
+                              <p class="font-semibold">${worker.name}</p>
+                              <p class="text-[10px] text-slate-400">Unit: ${worker.unit}</p>
+                            </td>
+                            <td class="p-3">
+                              <div class="bg-slate-50 p-2 rounded-xl border text-[10px] space-y-0.5">
+                                <p class="font-bold text-brandBlue-850">[${worker.workerBankName || 'BELUM DIISI'}]</p>
+                                <p class="font-mono">${worker.workerBankNumber || 'KOSONG'}</p>
+                                <p class="text-slate-400">a.n ${worker.workerBankOwner || 'KOSONG'}</p>
+                              </div>
+                            </td>
+                            <td class="p-3 font-black text-brandBlue-700">Rp ${job.budget.toLocaleString('id-ID')}</td>
+                            <td class="p-3 text-center">
+                              <button onclick="payoutWorkerByAdmin('${job.id}')" class="bg-amber-500 hover:bg-amber-600 text-slate-950 font-black px-3 py-2 rounded-lg text-[10px] shadow">
+                                💸 Saya Sudah Transfer & Selesai
+                              </button>
+                            </td>
+                          </tr>
+                        `;
+                      }).join("")}
+                      ${AppState.jobs.filter(j => j.status === 'Dana Siap Cair' && j.paymentMethod === 'Rekber').length === 0 ? `
+                        <tr><td colspan="5" class="text-center text-slate-400 py-4 text-[11px] font-light">Tidak ada pencairan upah tertunda.</td></tr>
+                      ` : ""}
+                    </tbody>
+                  </table>
                 </div>
-
               </div>
 
               <!-- Upload File QRIS Baru oleh Admin -->
@@ -1721,7 +1691,7 @@
                     <p class="text-[11px] text-slate-400">File akan otomatis dikompresi & disimpan di cloud Firestore.</p>
                     <div>
                       <input type="file" id="admin-qris-file" accept="image/*" class="hidden" onchange="handleQRISUpload(event)" />
-                      <label for="admin-qris-file" class="inline-block bg-emerald-700 hover:bg-emerald-600 text-white font-extrabold text-xs px-5 py-2.5 rounded-xl cursor-pointer transition shadow-md">
+                      <label for="admin-qris-file" class="inline-block bg-gradient-to-r from-brandGreen-600 to-brandBlue-600 text-white font-extrabold text-xs px-5 py-2.5 rounded-xl cursor-pointer transition shadow-md hover:opacity-95">
                         📁 Unggah File QRIS Baru
                       </label>
                     </div>
@@ -1732,7 +1702,7 @@
               <!-- Keanggotaan -->
               <div class="bg-white rounded-3xl border p-6 shadow-sm">
                 <h3 class="font-extrabold text-slate-950 mb-4 text-sm">📋 Keanggotaan & Reset Sandi Warga</h3>
-                <p class="text-xs text-slate-400 mb-4 font-light">Sandi default setelah direset oleh admin adalah <strong class="text-emerald-800">Nuansa123</strong>.</p>
+                <p class="text-xs text-slate-400 mb-4 font-light">Sandi default setelah direset oleh admin adalah <strong class="text-brandBlue-800">Nuansa123</strong>.</p>
                 <div class="overflow-x-auto text-xs">
                   <table class="w-full text-left">
                     <thead>
@@ -1758,12 +1728,12 @@
                           <td class="p-3 text-slate-600 font-light">${u.unit}</td>
                           <td class="p-3 text-slate-500 font-mono">${u.phone}</td>
                           <td class="p-3">
-                            <span class="px-2 py-0.5 rounded-full text-[9px] font-bold ${u.verified ? 'bg-emerald-100 text-emerald-800' : 'bg-rose-100 text-rose-800'}">
+                            <span class="px-2 py-0.5 rounded-full text-[9px] font-bold ${u.verified ? 'bg-brandBlue-100 text-brandBlue-800' : 'bg-rose-100 text-rose-800'}">
                               ${u.verified ? 'Terverifikasi' : 'Pending'}
                             </span>
                           </td>
                           <td class="p-3 text-center flex items-center justify-center space-x-1.5">
-                            <button onclick="toggleUserVerification('${u.id}')" class="px-2 py-1 rounded-lg text-[9px] font-bold transition ${u.verified ? 'bg-rose-100 text-rose-800 hover:bg-rose-200' : 'bg-emerald-100 text-emerald-800 hover:bg-emerald-200'}">
+                            <button onclick="toggleUserVerification('${u.id}')" class="px-2 py-1 rounded-lg text-[9px] font-bold transition ${u.verified ? 'bg-rose-100 text-rose-800 hover:bg-rose-200' : 'bg-brandBlue-100 text-brandBlue-800 hover:bg-brandBlue-200'}">
                               ${u.verified ? 'Batal' : 'Verifikasi'}
                             </button>
                             ${u.id !== 'u-admin' ? `
@@ -1795,21 +1765,23 @@
 
         appDiv.innerHTML = `
           <!-- HEADER -->
-          <header class="bg-emerald-950 text-white sticky top-0 z-40 shadow-lg border-b border-emerald-900">
-            <div class="max-w-6xl mx-auto px-4 py-3.5 flex flex-row items-center justify-between gap-4">
+          <header class="bg-gradient-to-r from-brandBlue-950 via-brandBlue-900 to-brandGreen-950 text-white sticky top-0 z-40 shadow-lg border-b border-brandBlue-900/60">
+            <div class="max-w-6xl mx-auto px-4 py-3 flex flex-row items-center justify-between gap-4">
               <div class="flex items-center space-x-3 cursor-pointer" onclick="changeTab('jobs')">
-                <img src="WhatsApp Image 2026-06-21 at 23.19.22.jpeg" class="w-10 h-10 rounded-xl object-cover border border-amber-400/50 shadow-md" alt="Nuansa Hub" onerror="this.src='https://placehold.co/150/047857/ffffff?text=NH'"/>
+                <div class="bg-white p-1 rounded-xl shadow-md max-w-[42px] border border-white/20">
+                  <img src="WhatsApp Image 2026-06-21 at 23.19.22.jpeg" onerror="this.onerror=null; this.src='https://placehold.co/150x150/0054a6/ffffff?text=Nuansa+Hub'" alt="Logo Nuansa Hub" class="w-full h-auto">
+                </div>
                 <div>
                   <div class="flex items-center space-x-1.5">
-                    <h1 class="text-sm sm:text-base font-extrabold tracking-tight leading-none">NuansaHub</h1>
+                    <h1 class="text-sm sm:text-base font-extrabold tracking-tight leading-none text-white">Nuansa<span class="text-brandGreen-400">Hub</span></h1>
                     <!-- Indikator Hijau Kecil Koneksi Firebase -->
                     ${isFirebaseConnected ? `
                       <div class="flex items-center space-x-1" title="Terhubung ke Firebase">
                         <span class="relative flex h-2 w-2">
-                          <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
-                          <span class="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
+                          <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-brandGreen-400 opacity-75"></span>
+                          <span class="relative inline-flex rounded-full h-2 w-2 bg-brandGreen-400"></span>
                         </span>
-                        <span class="text-[8px] text-emerald-400 font-bold hidden sm:inline">Terhubung</span>
+                        <span class="text-[8px] text-brandGreen-400 font-bold hidden sm:inline">Terhubung</span>
                       </div>
                     ` : `
                       <div class="flex items-center space-x-1" title="Mencoba Menghubungkan...">
@@ -1820,66 +1792,59 @@
                       </div>
                     `}
                   </div>
-                  <p class="text-[9px] text-emerald-300 mt-0.5">Nuansa Pondok Kelapa</p>
+                  <p class="text-[9px] text-sky-300 mt-0.5">Saling Membantu, Membuka Peluang, Membangun Nuansa</p>
                 </div>
               </div>
 
               <!-- Login / Profile Section -->
               <div class="flex items-center space-x-2">
                 ${AppState.isLoggedIn && currentUserData ? `
-                  <button onclick="changeTab('profile')" class="bg-emerald-900/85 px-3 py-1.5 rounded-xl text-xs font-bold border border-emerald-800 transition flex items-center space-x-2">
+                  <button onclick="changeTab('profile')" class="bg-white/10 px-3 py-1.5 rounded-xl text-xs font-bold border border-white/20 hover:bg-white/20 transition flex items-center space-x-2">
                     <img src="${currentUserData.avatar}" class="w-5 h-5 rounded-full object-cover aspect-square" alt="avatar" />
                     <span class="hidden sm:inline font-bold">${currentUserData.name}</span>
                   </button>
                   ${currentUserData.role === 'admin' ? `
-                    <button onclick="changeTab('admin')" class="bg-amber-500 text-slate-950 px-3 py-1.5 rounded-xl text-xs font-extrabold shadow-md">🛡️ Admin</button>
+                    <button onclick="changeTab('admin')" class="bg-gradient-to-r from-brandGreen-500 to-brandBlue-500 text-white hover:opacity-90 px-3 py-1.5 rounded-xl text-xs font-extrabold shadow-md">🛡️ Admin</button>
                   ` : ""}
                 ` : `
-                  <button onclick="openAuthModal('login')" class="bg-gradient-to-r from-amber-400 to-amber-500 text-emerald-950 font-black px-4 py-2 rounded-xl text-xs shadow-md">🔑 Masuk / Daftar</button>
+                  <button onclick="openAuthModal('login')" class="bg-gradient-to-r from-brandGreen-500 to-brandBlue-500 text-white hover:opacity-95 font-black px-4 py-2 rounded-xl text-xs shadow-md">🔑 Masuk / Daftar</button>
                 `}
               </div>
             </div>
           </header>
 
           <!-- HERO SECTION -->
-          <section class="bg-gradient-to-br from-emerald-950 via-emerald-900 to-teal-950 text-white py-10 px-4 shadow-xl relative overflow-hidden">
-            <div class="absolute inset-0 opacity-15 bg-[radial-gradient(#38bdf8_1px,transparent_1px)] [background-size:20px_20px]"></div>
+          <section class="bg-gradient-to-br from-brandBlue-950 via-brandBlue-900 to-brandGreen-950 text-white py-10 px-4 shadow-xl relative overflow-hidden">
+            <div class="absolute inset-0 opacity-10 bg-[radial-gradient(#38bdf8_1px,transparent_1px)] [background-size:20px_20px]"></div>
             <div class="max-w-6xl mx-auto relative z-10">
               <div class="grid grid-cols-1 lg:grid-cols-12 gap-8 items-center">
-                <div class="lg:col-span-5 space-y-4">
-                  <div class="inline-flex items-center space-x-2 bg-emerald-800/60 backdrop-blur px-3 py-1.5 rounded-full text-xs text-emerald-200 border border-emerald-700/50">
+                <div class="lg:col-span-7 space-y-4">
+                  <div class="inline-flex items-center space-x-2 bg-brandBlue-800/40 backdrop-blur px-3 py-1.5 rounded-full text-xs text-sky-200 border border-brandBlue-700/30">
                     <span>🏙️</span>
                     <span>Menara Samawa & Menara Swasana</span>
                   </div>
-                  <h2 class="text-3xl sm:text-4xl lg:text-5xl font-black tracking-tight leading-none text-transparent bg-clip-text bg-gradient-to-r from-white via-slate-100 to-amber-300">
-                    Saling Membantu, Membuka Peluang.
+                  <h2 class="text-3xl sm:text-4xl lg:text-5xl font-black tracking-tight leading-none text-transparent bg-clip-text bg-gradient-to-r from-white via-sky-100 to-brandGreen-300">
+                    Saling Membantu, Membuka Peluang, Membangun Nuansa.
                   </h2>
-                  <p class="text-emerald-100/90 text-sm sm:text-base max-w-xl leading-relaxed font-light">
-                    Platform mikro-ekonomi terpercaya eksklusif warga <strong>Nuansa Pondok Kelapa</strong>. Temukan pekerjaan serabutan harian terbaik atau sewa jasa tepercaya tetangga sendiri dengan aman lewat sistem Rekber.
+                  <p class="text-sky-100/90 text-sm sm:text-base max-w-xl leading-relaxed font-light">
+                    Platform mikro-ekonomi terpercaya eksklusif warga <strong>Nuansa Pondok Kelapa</strong>. Hubungi tetangga seberang unit atau seberang tower secara aman dan kekeluargaan.
                   </p>
                   <div class="flex flex-wrap gap-3 pt-2">
-                    <button onclick="if(checkAccess('Membuat lowongan baru')) document.getElementById('job-creation-modal').style.display='flex'" class="bg-gradient-to-r from-amber-400 to-amber-500 text-slate-950 font-extrabold px-5 py-3 rounded-2xl text-xs sm:text-sm shadow-lg">➕ Pasang Lowongan Kerja</button>
-                    <button onclick="if(checkAccess('Menawarkan jasa baru')) document.getElementById('talent-creation-modal').style.display='flex'" class="bg-teal-600 text-white font-extrabold px-5 py-3 rounded-2xl text-xs sm:text-sm border border-teal-500/50 shadow-md">📢 Tawarkan Jasa Saya</button>
-                  </div>
-                </div>
-
-                <!-- BANNER UTAMA (LOGO TENGAH) -->
-                <div class="lg:col-span-3 flex justify-center">
-                  <div class="bg-white p-2.5 rounded-3xl border border-white/20 shadow-2xl overflow-hidden max-w-[240px] lg:max-w-full">
-                    <img src="WhatsApp Image 2026-06-21 at 23.19.22.jpeg" class="w-full h-auto rounded-2xl object-cover shadow-inner hover:scale-105 transition-transform duration-300" alt="Nuansa Hub Banner" onerror="this.src='https://placehold.co/400x400/047857/ffffff?text=Nuansa+Hub'"/>
+                    <button onclick="if(checkAccess('Membuat lowongan baru')) document.getElementById('job-creation-modal').style.display='flex'" class="bg-gradient-to-r from-brandGreen-500 to-brandBlue-500 hover:opacity-95 text-white font-extrabold px-5 py-3 rounded-2xl text-xs sm:text-sm shadow-lg transform hover:-translate-y-0.5 transition duration-150">➕ Pasang Lowongan Kerja</button>
+                    <button onclick="if(checkAccess('Menawarkan jasa baru')) document.getElementById('talent-creation-modal').style.display='flex'" class="bg-white/10 hover:bg-white/20 text-white font-extrabold px-5 py-3 rounded-2xl text-xs sm:text-sm border border-white/20 shadow-md transform hover:-translate-y-0.5 transition duration-150">📢 Tawarkan Jasa Saya</button>
                   </div>
                 </div>
 
                 <!-- Apresiasi Admin QRIS -->
-                <div class="lg:col-span-4 bg-white/5 backdrop-blur-md rounded-3xl p-6 border border-white/10 shadow-2xl space-y-3.5">
-                  <div class="flex items-center space-x-2 text-amber-300">
+                <div class="lg:col-span-5 bg-white/5 backdrop-blur-md rounded-3xl p-6 border border-white/10 shadow-2xl space-y-3.5">
+                  <div class="flex items-center space-x-2 text-brandGreen-300">
                     <span class="text-2xl">☕</span>
                     <h3 class="font-extrabold text-sm tracking-wide uppercase">Dukungan Server edhos</h3>
                   </div>
                   <p class="text-xs text-slate-200 leading-relaxed font-light">
                     Aplikasi ini dikembangkan sukarela oleh <strong>edhos (Admin)</strong>. Jika membantu keuangan atau mempermudah keseharian Anda, berikan dukungan sukarela untuk server kami.
                   </p>
-                  <button onclick="openQRISModal()" class="w-full bg-gradient-to-r from-emerald-500 to-teal-500 text-white font-extrabold py-3 rounded-2xl text-xs transition shadow-md">📱 Scan QRIS Dukungan</button>
+                  <button onclick="openQRISModal()" class="w-full bg-gradient-to-r from-brandGreen-500 to-brandBlue-500 hover:opacity-95 text-white font-extrabold py-3 rounded-2xl text-xs transition shadow-md">📱 Scan QRIS Dukungan</button>
                 </div>
               </div>
             </div>
@@ -1896,14 +1861,14 @@
                     placeholder="${AppState.activeTab === 'jobs' ? "Cari kerja serabutan, cuci AC, belanja harian..." : "Cari nama tetangga atau bidang keahlian..."}"
                     oninput="searchQueryChange(event)"
                     value="${AppState.searchQuery}"
-                    class="w-full pl-10 pr-4 py-2.5 bg-slate-100 border border-slate-200 rounded-2xl text-xs sm:text-sm text-slate-800"
+                    class="w-full pl-10 pr-4 py-2.5 bg-slate-100 border border-slate-200 rounded-2xl text-xs sm:text-sm text-slate-800 focus:outline-none focus:ring-1 focus:ring-brandBlue-500"
                   />
                 </div>
 
                 ${AppState.activeTab === 'jobs' ? `
                   <div class="flex gap-1.5 overflow-x-auto w-full sm:w-auto scrollbar-none pb-1 sm:pb-0">
                     ${['Semua', 'Serabutan', 'Profesional', 'Info Loker'].map(category => `
-                      <button onclick="setCategory('${category}')" class="px-4 py-2 rounded-xl text-xs font-bold whitespace-nowrap transition-all ${AppState.selectedCategory === category ? 'bg-emerald-600 text-white shadow-md border border-emerald-500' : 'bg-slate-100 text-slate-600 hover:bg-slate-200 border border-transparent'}">
+                      <button onclick="setCategory('${category}')" class="px-4 py-2 rounded-xl text-xs font-bold whitespace-nowrap transition-all ${AppState.selectedCategory === category ? 'bg-gradient-to-r from-brandGreen-600 to-brandBlue-600 text-white shadow-md' : 'bg-slate-100 text-slate-600 hover:bg-slate-200 border border-transparent'}">
                         ${category}
                       </button>
                     `).join("")}
@@ -1919,29 +1884,27 @@
           </main>
 
           <!-- NAVIGASI BOTTOM BAR -->
-          <nav class="fixed bottom-0 left-0 right-0 bg-white/95 backdrop-blur-md border-t border-slate-200 py-2 shadow-2xl z-40">
-            <div class="max-w-md mx-auto flex items-center justify-around px-2">
-              <button onclick="changeTab('jobs')" class="flex flex-col items-center justify-center w-14 py-1 transition-all ${AppState.activeTab === 'jobs' ? 'text-emerald-700 scale-110 font-bold' : 'text-slate-400 font-normal'}">
-                <span class="text-lg">💼</span>
-                <span class="text-[9px] tracking-tight mt-0.5 font-bold">Kerjaan</span>
-              </button>
-              <button onclick="changeTab('talents')" class="flex flex-col items-center justify-center w-14 py-1 transition-all ${AppState.activeTab === 'talents' ? 'text-emerald-700 scale-110 font-bold' : 'text-slate-400 font-normal'}">
-                <span class="text-lg">🛠️</span>
-                <span class="text-[9px] tracking-tight mt-0.5 font-bold">Jasa</span>
-              </button>
-              <button onclick="changeTab('chats')" class="flex flex-col items-center justify-center w-14 py-1 transition-all ${AppState.activeTab === 'chats' ? 'text-emerald-700 scale-110 font-bold' : 'text-slate-400 font-normal'}">
-                <span class="text-lg relative">💬</span>
-                <span class="text-[9px] tracking-tight mt-0.5 font-bold">Obrolan</span>
-              </button>
-              <button onclick="changeTab('profile')" class="flex flex-col items-center justify-center w-14 py-1 transition-all ${AppState.activeTab === 'profile' ? 'text-emerald-700 scale-110 font-bold' : 'text-slate-400 font-normal'}">
-                <span class="text-lg">👤</span>
-                <span class="text-[9px] tracking-tight mt-0.5 font-bold">Profil</span>
-              </button>
-              <button onclick="changeTab('about')" class="flex flex-col items-center justify-center w-14 py-1 transition-all ${AppState.activeTab === 'about' ? 'text-emerald-700 scale-110 font-bold' : 'text-slate-400 font-normal'}">
-                <span class="text-lg">ℹ️</span>
-                <span class="text-[9px] tracking-tight mt-0.5 font-bold">Info</span>
-              </button>
-            </div>
+          <nav class="fixed bottom-4 left-4 right-4 md:left-1/2 md:right-auto md:w-[450px] md:-translate-x-1/2 bg-white/95 backdrop-blur-md border border-slate-200/80 rounded-2xl shadow-xl py-2 px-6 flex justify-around items-center z-40">
+            <button onclick="changeTab('jobs')" class="flex flex-col items-center justify-center w-14 py-1 transition-all ${AppState.activeTab === 'jobs' ? 'text-brandBlue-600 scale-110 font-bold' : 'text-slate-400 font-normal'}">
+              <span class="text-lg">💼</span>
+              <span class="text-[9px] tracking-tight mt-0.5 font-bold">Kerjaan</span>
+            </button>
+            <button onclick="changeTab('talents')" class="flex flex-col items-center justify-center w-14 py-1 transition-all ${AppState.activeTab === 'talents' ? 'text-brandBlue-600 scale-110 font-bold' : 'text-slate-400 font-normal'}">
+              <span class="text-lg">🛠️</span>
+              <span class="text-[9px] tracking-tight mt-0.5 font-bold">Jasa</span>
+            </button>
+            <button onclick="changeTab('chats')" class="flex flex-col items-center justify-center w-14 py-1 transition-all ${AppState.activeTab === 'chats' ? 'text-brandBlue-600 scale-110 font-bold' : 'text-slate-400 font-normal'}">
+              <span class="text-lg relative">💬</span>
+              <span class="text-[9px] tracking-tight mt-0.5 font-bold">Obrolan</span>
+            </button>
+            <button onclick="changeTab('profile')" class="flex flex-col items-center justify-center w-14 py-1 transition-all ${AppState.activeTab === 'profile' ? 'text-brandBlue-600 scale-110 font-bold' : 'text-slate-400 font-normal'}">
+              <span class="text-lg">👤</span>
+              <span class="text-[9px] tracking-tight mt-0.5 font-bold">Profil</span>
+            </button>
+            <button onclick="changeTab('about')" class="flex flex-col items-center justify-center w-14 py-1 transition-all ${AppState.activeTab === 'about' ? 'text-brandBlue-600 scale-110 font-bold' : 'text-slate-400 font-normal'}">
+              <span class="text-lg">ℹ️</span>
+              <span class="text-[9px] tracking-tight mt-0.5 font-bold">Info</span>
+            </button>
           </nav>
         `;
       } catch (err) {
@@ -1949,7 +1912,7 @@
       }
     }
 
-    // Dynamic rendering helper untuk Autentikasi
+    // --- STREAMING_CHUNK: Auth Modal Contents Construction ---
     window.renderAuthModalContent = function() {
       const authContent = document.getElementById("auth-modal-body");
       if (!authContent) return;
@@ -1960,10 +1923,10 @@
 
       let tabsHtml = `
         <div class="flex border-b border-slate-200 mb-5 text-xs font-bold">
-          <button type="button" onclick="AppState.authTab = 'login'; renderAuthModalContent();" class="w-1/2 pb-3 text-center border-b-2 transition-all ${isLogin ? 'border-emerald-700 text-emerald-800' : 'border-transparent text-slate-400 hover:text-slate-600'}">
+          <button type="button" onclick="AppState.authTab = 'login'; renderAuthModalContent();" class="w-1/2 pb-3 text-center border-b-2 transition-all ${isLogin ? 'border-brandBlue-500 text-brandBlue-600' : 'border-transparent text-slate-400 hover:text-slate-600'}">
             🔑 MASUK (LOGIN)
           </button>
-          <button type="button" onclick="AppState.authTab = 'register'; renderAuthModalContent();" class="w-1/2 pb-3 text-center border-b-2 transition-all ${isRegister ? 'border-emerald-700 text-emerald-800' : 'border-transparent text-slate-400 hover:text-slate-600'}">
+          <button type="button" onclick="AppState.authTab = 'register'; renderAuthModalContent();" class="w-1/2 pb-3 text-center border-b-2 transition-all ${isRegister ? 'border-brandBlue-500 text-brandBlue-600' : 'border-transparent text-slate-400 hover:text-slate-600'}">
             📝 DAFTAR AKUN
           </button>
         </div>
@@ -1975,30 +1938,30 @@
           <form onsubmit="handleLoginSubmit(event)" class="space-y-4">
             <div>
               <label class="block text-[10px] font-bold text-slate-500 uppercase mb-1">Nomor WhatsApp *</label>
-              <input type="text" id="login-phone" placeholder="Contoh: 08123456000" class="w-full px-4 py-2.5 border rounded-xl text-xs bg-slate-50 focus:outline-none" required />
+              <input type="text" id="login-phone" placeholder="Contoh: 08123456000" class="w-full px-4 py-2.5 border rounded-xl text-xs bg-slate-50 focus:outline-none focus:ring-1 focus:ring-brandBlue-500" required />
             </div>
             <div>
               <div class="flex justify-between mb-1">
                 <label class="block text-[10px] font-bold text-slate-500 uppercase">Password *</label>
-                <button type="button" onclick="AppState.authTab = 'forgot'; AppState.forgotStep = 1; renderAuthModalContent();" class="text-[10px] text-emerald-700 hover:underline font-bold">Lupa Sandi?</button>
+                <button type="button" onclick="AppState.authTab = 'forgot'; AppState.forgotStep = 1; renderAuthModalContent();" class="text-[10px] text-brandBlue-600 hover:underline font-bold">Lupa Sandi?</button>
               </div>
-              <input type="password" id="login-password" placeholder="Masukkan sandi..." class="w-full px-4 py-2.5 border rounded-xl text-xs bg-slate-50 focus:outline-none" required />
+              <input type="password" id="login-password" placeholder="Masukkan sandi..." class="w-full px-4 py-2.5 border rounded-xl text-xs bg-slate-50 focus:outline-none focus:ring-1 focus:ring-brandBlue-500" required />
             </div>
-            <button type="submit" class="w-full bg-emerald-700 hover:bg-emerald-600 text-white font-extrabold py-3 rounded-xl text-xs transition shadow-md">Masuk Sekarang 🚀</button>
+            <button type="submit" class="w-full bg-gradient-to-r from-brandGreen-600 to-brandBlue-600 text-white font-extrabold py-3 rounded-xl text-xs transition shadow-md hover:opacity-95">Masuk Sekarang 🚀</button>
             
             <p class="text-center text-[11px] text-slate-500 pt-2">
               Belum punya akun? 
-              <button type="button" onclick="AppState.authTab = 'register'; renderAuthModalContent();" class="text-emerald-700 font-bold hover:underline">Daftar Akun Baru</button>
+              <button type="button" onclick="AppState.authTab = 'register'; renderAuthModalContent();" class="text-brandBlue-600 font-bold hover:underline">Daftar Akun Baru</button>
             </p>
           </form>
         `;
       } else if (isRegister) {
         authContent.innerHTML = `
           ${tabsHtml}
-          <form onsubmit="handleRegisterSubmit(event)" class="space-y-3 max-h-[350px] overflow-y-auto pr-1">
+          <form onsubmit="handleRegisterSubmit(event)" class="space-y-3 max-h-[350px] overflow-y-auto pr-1 scrollbar-none">
             <div>
               <label class="block text-[10px] font-bold text-slate-500 uppercase mb-1">Nama Lengkap *</label>
-              <input type="text" id="reg-name" placeholder="Nama asli sesuai KTP" class="w-full px-3.5 py-2 border rounded-xl text-xs bg-slate-50 focus:outline-none" required />
+              <input type="text" id="reg-name" placeholder="Nama asli sesuai KTP" class="w-full px-3.5 py-2 border rounded-xl text-xs bg-slate-50 focus:outline-none focus:ring-1 focus:ring-brandBlue-500" required />
             </div>
             <div class="grid grid-cols-2 gap-2">
               <div>
@@ -2010,20 +1973,20 @@
               </div>
               <div>
                 <label class="block text-[10px] font-bold text-slate-500 uppercase mb-1">Unit (4 Digit) *</label>
-                <input type="text" id="reg-unit" maxLength="4" placeholder="Contoh: 1405" class="w-full px-3.5 py-1.5 border rounded-xl text-xs bg-slate-50 focus:outline-none" required />
+                <input type="text" id="reg-unit" maxLength="4" placeholder="Contoh: 1405" class="w-full px-3.5 py-1.5 border rounded-xl text-xs bg-slate-50 focus:outline-none focus:ring-1 focus:ring-brandBlue-500" required />
               </div>
             </div>
             <div>
               <label class="block text-[10px] font-bold text-slate-500 uppercase mb-1">Nomor WhatsApp *</label>
-              <input type="text" id="reg-phone" placeholder="Contoh: 08123456000" class="w-full px-3.5 py-2 border rounded-xl text-xs bg-slate-50 focus:outline-none" required />
+              <input type="text" id="reg-phone" placeholder="Contoh: 08123456000" class="w-full px-3.5 py-2 border rounded-xl text-xs bg-slate-50 focus:outline-none focus:ring-1 focus:ring-brandBlue-500" required />
             </div>
             <div>
               <label class="block text-[10px] font-bold text-slate-500 uppercase mb-1">Sandi Masuk *</label>
-              <input type="password" id="reg-password" placeholder="Sandi baru Anda" class="w-full px-3.5 py-2 border rounded-xl text-xs bg-slate-50 focus:outline-none" required />
+              <input type="password" id="reg-password" placeholder="Sandi baru Anda" class="w-full px-3.5 py-2 border rounded-xl text-xs bg-slate-50 focus:outline-none focus:ring-1 focus:ring-brandBlue-500" required />
             </div>
             
             <div class="border-t pt-2 mt-2 space-y-2">
-              <p class="text-[9px] font-bold text-emerald-800 uppercase">🛡️ Konfigurasi Pemulihan Sandi</p>
+              <p class="text-[9px] font-bold text-brandGreen-850 uppercase">🛡️ Konfigurasi Pemulihan Sandi</p>
               <div>
                 <label class="block text-[10px] font-bold text-slate-500 uppercase mb-1">Pertanyaan Keamanan *</label>
                 <select id="reg-question" class="w-full px-2 py-1.5 border rounded-xl text-xs bg-white">
@@ -2032,10 +1995,10 @@
               </div>
               <div>
                 <label class="block text-[10px] font-bold text-slate-500 uppercase mb-1">Jawaban Rahasia *</label>
-                <input type="text" id="reg-answer" placeholder="Tuliskan jawaban pengingat..." class="w-full px-3.5 py-2 border rounded-xl text-xs bg-slate-50 focus:outline-none" required />
+                <input type="text" id="reg-answer" placeholder="Tuliskan jawaban pengingat..." class="w-full px-3.5 py-2 border rounded-xl text-xs bg-slate-50 focus:outline-none focus:ring-1 focus:ring-brandBlue-500" required />
               </div>
             </div>
-            <button type="submit" class="w-full bg-emerald-700 hover:bg-emerald-600 text-white font-extrabold py-3 rounded-xl text-xs transition shadow-md">Daftar Akun Baru ✨</button>
+            <button type="submit" class="w-full bg-gradient-to-r from-brandGreen-600 to-brandBlue-600 text-white font-extrabold py-3 rounded-xl text-xs transition shadow-md hover:opacity-95">Daftar Akun Baru ✨</button>
           </form>
         `;
       } else if (isForgot) {
@@ -2045,24 +2008,24 @@
             <form onsubmit="handleForgotSearchAction(event)" class="space-y-3">
               <p class="text-[11px] text-slate-500 font-light">Masukkan nomor WhatsApp Anda untuk mencocokkan pertanyaan keamanan.</p>
               <input type="text" id="forgot-phone-input" placeholder="08123456000" class="w-full px-3 py-2 border rounded-xl text-xs focus:outline-none" required />
-              <button type="submit" class="w-full bg-emerald-700 text-white font-bold py-2.5 rounded-xl text-xs shadow-md">Cari Akun 🔍</button>
+              <button type="submit" class="w-full bg-brandBlue-600 text-white font-bold py-2.5 rounded-xl text-xs shadow-md">Cari Akun 🔍</button>
             </form>
           `;
         } else if (AppState.forgotStep === 2 && AppState.forgotUserFound) {
           innerForgotHTML = `
             <form onsubmit="handleForgotVerifyAnswerAction(event)" class="space-y-3">
-              <div class="p-3 bg-emerald-50 rounded-xl border text-xs">
-                <span class="font-bold text-emerald-800 block mb-1">Pertanyaan Anda:</span>
+              <div class="p-3 bg-brandBlue-50 rounded-xl border text-xs">
+                <span class="font-bold text-brandBlue-800 block mb-1">Pertanyaan Anda:</span>
                 <span>"${AppState.forgotUserFound.securityQuestion}"</span>
               </div>
               <input type="text" id="forgot-answer-input" placeholder="Masukkan jawaban..." class="w-full px-3 py-2 border rounded-xl text-xs focus:outline-none" required />
-              <button type="submit" class="w-full bg-emerald-700 text-white font-bold py-2.5 rounded-xl text-xs shadow-md">Kirim Jawaban ✅</button>
+              <button type="submit" class="w-full bg-brandBlue-600 text-white font-bold py-2.5 rounded-xl text-xs shadow-md">Kirim Jawaban ✅</button>
             </form>
           `;
         } else if (AppState.forgotStep === 3) {
           innerForgotHTML = `
             <form onsubmit="handleForgotResetPassAction(event)" class="space-y-3">
-              <p class="text-[11px] text-emerald-800 font-bold">✓ Terverifikasi! Buat sandi baru.</p>
+              <p class="text-[11px] text-brandGreen-800 font-bold">✓ Terverifikasi! Buat sandi baru.</p>
               <input type="password" id="forgot-new-pass-input" placeholder="Sandi baru..." class="w-full px-3 py-2 border rounded-xl text-xs focus:outline-none" required />
               <button type="submit" class="w-full bg-amber-500 text-slate-900 font-extrabold py-2.5 rounded-xl text-xs shadow-md">Simpan Sandi 💾</button>
             </form>
@@ -2073,7 +2036,7 @@
           <div class="space-y-4">
             <div class="flex justify-between items-center pb-2 border-b">
               <h4 class="font-extrabold text-xs text-rose-800 uppercase">Pemulihan Akun</h4>
-              <button type="button" onclick="AppState.authTab = 'login'; renderAuthModalContent();" class="text-xs text-emerald-700 font-bold hover:underline">Kembali Login</button>
+              <button type="button" onclick="AppState.authTab = 'login'; renderAuthModalContent();" class="text-xs text-brandBlue-600 font-bold hover:underline">Kembali Login</button>
             </div>
             ${innerForgotHTML}
           </div>
@@ -2081,7 +2044,7 @@
       }
     };
 
-    // Event Global untuk Pemulihan Lupa Sandi
+    // --- STREAMING_CHUNK: Forgot Password Operations ---
     window.handleForgotSearchAction = function(e) {
       e.preventDefault();
       const phone = document.getElementById("forgot-phone-input").value;
@@ -2113,10 +2076,7 @@
         AppState.users = AppState.users.map(u => {
           if (u.id === AppState.forgotUserFound.id) {
             const updatedUser = { ...u, password: newPass };
-            if (db) {
-              setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'users', u.id), updatedUser)
-                .catch(err => console.log("Gagal memperbarui sandi online."));
-            }
+            if (db) { setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'users', u.id), updatedUser); }
             return updatedUser;
           }
           return u;
@@ -2138,7 +2098,7 @@
   <!-- ================= MODAL 1: AUTENTIKASI (LOGIN & DAFTAR) ================= -->
   <div id="auth-modal" class="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 hidden items-center justify-center p-4">
     <div class="bg-white rounded-3xl shadow-2xl w-full max-w-sm overflow-hidden animate-zoom-in">
-      <div class="bg-emerald-950 text-white px-6 py-4 flex justify-between items-center border-b border-emerald-900">
+      <div class="bg-gradient-to-r from-brandBlue-950 via-brandBlue-900 to-brandGreen-950 text-white px-6 py-4 flex justify-between items-center border-b border-brandBlue-900">
         <span class="font-extrabold text-sm tracking-tight">Otentikasi Warga Nuansa</span>
         <button onclick="closeAuthModal()" class="text-white hover:text-slate-200">✕</button>
       </div>
@@ -2153,13 +2113,13 @@
       <h3 class="font-extrabold text-slate-900 text-base">Butuh Verifikasi Warga</h3>
       <p class="text-xs text-slate-500 leading-relaxed font-light">
         Anda mencoba untuk melakukan: <br>
-        <strong id="guest-warning-action" class="text-emerald-800"></strong>. <br>
+        <strong id="guest-warning-action" class="text-brandBlue-800"></strong>. <br>
         Demi keamanan warga <strong>Nuansa Pondok Kelapa</strong>, fitur ini memerlukan akun terdaftar.
       </p>
       <div class="flex flex-col gap-2 pt-1">
-        <button onclick="closeGuestWarningModal(); openAuthModal('register')" class="w-full bg-emerald-700 hover:bg-emerald-600 text-white font-extrabold py-3 rounded-xl text-xs transition shadow-md">📝 Daftar Akun Warga Baru</button>
-        <button onclick="closeGuestWarningModal(); openAuthModal('login')" class="w-full bg-slate-100 hover:bg-slate-200 text-slate-750 font-bold py-2.5 rounded-xl text-xs transition border">🔐 Masuk / Login</button>
-        <button onclick="closeGuestWarningModal()" class="text-slate-400 font-bold text-[10px] underline">Kembali Melihat Beranda</button>
+        <button onclick="closeGuestWarningModal(); openAuthModal('register')" class="w-full bg-gradient-to-r from-brandGreen-600 to-brandBlue-600 text-white font-extrabold py-3 rounded-xl text-xs transition shadow-md">📝 Daftar Akun Warga Baru</button>
+        <button onclick="closeGuestWarningModal(); openAuthModal('login')" class="w-full bg-slate-100 hover:bg-slate-200 text-slate-755 font-bold py-2.5 rounded-xl text-xs transition border">🔐 Masuk / Login</button>
+        <button onclick="closeGuestWarningModal()" class="text-slate-400 font-bold text-[10px] underline cursor-pointer">Kembali Melihat Beranda</button>
       </div>
     </div>
   </div>
@@ -2169,7 +2129,7 @@
     <div class="bg-white rounded-3xl shadow-2xl w-full max-w-sm text-center p-6 space-y-4 border border-slate-200 animate-zoom-in">
       <div class="flex justify-between items-center pb-2 border-b">
         <div class="text-left">
-          <h4 class="font-extrabold text-xs tracking-wider text-emerald-800 uppercase">QRIS Dukungan Server</h4>
+          <h4 class="font-extrabold text-xs tracking-wider text-brandBlue-800 uppercase">QRIS Dukungan Server</h4>
           <p class="text-[10px] text-slate-400">Atas nama: Seblak iZZi / NuansaHub</p>
         </div>
         <button onclick="closeQRISModal()" class="text-slate-400 font-bold hover:text-slate-700">✕</button>
@@ -2181,21 +2141,21 @@
         </div>
         <p class="text-[10px] text-slate-400">Klik gambar QRIS untuk memperbesar secara penuh.</p>
       </div>
-      <button onclick="closeQRISModal()" class="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold py-3 rounded-xl text-xs transition shadow-md">Saya Sudah Selesai Scan 🚀</button>
+      <button onclick="closeQRISModal()" class="w-full bg-gradient-to-r from-brandGreen-600 to-brandBlue-600 text-white font-extrabold py-3 rounded-xl text-xs transition shadow-md">Saya Sudah Selesai Scan 🚀</button>
     </div>
   </div>
 
   <!-- ================= MODAL 4: PASANG LOWONGAN KERJAAN BARU ================= -->
   <div id="job-creation-modal" class="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 hidden items-center justify-center p-4">
     <div class="bg-white rounded-3xl shadow-xl w-full max-w-sm overflow-hidden animate-zoom-in">
-      <div class="bg-emerald-950 text-white px-5 py-3.5 flex justify-between items-center text-xs">
+      <div class="bg-gradient-to-r from-brandBlue-950 via-brandBlue-900 to-brandGreen-950 text-white px-5 py-3.5 flex justify-between items-center text-xs">
         <span class="font-bold">Pasang Lowongan Tugas Baru</span>
         <button onclick="document.getElementById('job-creation-modal').style.display='none'">✕</button>
       </div>
       <form onsubmit="handleCreateJobSubmit(event)" class="p-5 space-y-3.5 text-xs">
         <div>
           <label class="block text-[9px] font-bold text-slate-500 uppercase mb-0.5">Judul Pekerjaan *</label>
-          <input type="text" id="new-job-title" placeholder="Contoh: Bantu Jemput Anak Sekolah" class="w-full px-3 py-2 border rounded-lg focus:outline-none" required />
+          <input type="text" id="new-job-title" placeholder="Contoh: Bantu Jemput Anak Sekolah" class="w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-1 focus:ring-brandBlue-500" required />
         </div>
         <div class="grid grid-cols-2 gap-3">
           <div>
@@ -2208,14 +2168,21 @@
           </div>
           <div>
             <label class="block text-[9px] font-bold text-slate-500 uppercase mb-0.5">Upah (Rp) *</label>
-            <input type="number" id="new-job-budget" placeholder="50000" class="w-full px-3 py-1.5 border rounded-lg focus:outline-none" required />
+            <input type="number" id="new-job-budget" placeholder="50000" class="w-full px-3 py-1.5 border rounded-lg focus:outline-none focus:ring-1 focus:ring-brandBlue-500" required />
           </div>
         </div>
         <div>
-          <label class="block text-[9px] font-bold text-slate-500 uppercase mb-0.5">Deskripsi Tugas *</label>
-          <textarea id="new-job-desc" rows="3" placeholder="Terangkan kriteria tugas Anda..." class="w-full px-3 py-2 border rounded-lg focus:outline-none" required></textarea>
+          <label class="block text-[9px] font-bold text-slate-500 uppercase mb-0.5">Metode Pembayaran *</label>
+          <select id="new-job-payment-method" class="w-full px-2 py-1.5 border rounded-lg bg-white focus:outline-none">
+            <option value="Rekber">🛡️ Rekber Resmi (Uang Ditahan Admin - Aman)</option>
+            <option value="Langsung">💸 Bayar Langsung (Cash / Transfer Mandiri - Tanpa Admin Fee)</option>
+          </select>
         </div>
-        <button type="submit" class="w-full bg-emerald-700 hover:bg-emerald-600 text-white font-bold py-2.5 rounded-lg transition shadow-md">Tayangkan Lowongan 🚀</button>
+        <div>
+          <label class="block text-[9px] font-bold text-slate-500 uppercase mb-0.5">Deskripsi Tugas *</label>
+          <textarea id="new-job-desc" rows="3" placeholder="Terangkan kriteria tugas Anda..." class="w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-1 focus:ring-brandBlue-500" required></textarea>
+        </div>
+        <button type="submit" class="w-full bg-gradient-to-r from-brandGreen-600 to-brandBlue-600 text-white font-bold py-2.5 rounded-lg transition shadow-md">Tayangkan Lowongan 🚀</button>
       </form>
     </div>
   </div>
@@ -2223,20 +2190,20 @@
   <!-- ================= MODAL 5: PASANG PENAWARAN JASA BARU ================= -->
   <div id="talent-creation-modal" class="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 hidden items-center justify-center p-4">
     <div class="bg-white rounded-2xl shadow-2xl w-full max-w-sm overflow-hidden animate-zoom-in">
-      <div class="bg-emerald-950 text-white px-5 py-3 flex justify-between items-center text-xs">
+      <div class="bg-gradient-to-r from-brandBlue-950 via-brandBlue-900 to-brandGreen-950 text-white px-5 py-3 flex justify-between items-center text-xs">
         <span class="font-bold">Tawarkan Keahlian Anda</span>
         <button onclick="document.getElementById('talent-creation-modal').style.display='none'">✕</button>
       </div>
       <form onsubmit="handleCreateTalentSubmit(event)" class="p-5 space-y-3.5 text-xs">
         <div>
           <label class="block text-[9px] font-bold text-slate-500 uppercase mb-0.5">Keahlian Jasa *</label>
-          <input type="text" id="new-talent-skill" placeholder="Contoh: Servis AC, Antar Air Galon" class="w-full px-3 py-2 border rounded-lg focus:outline-none" required />
+          <input type="text" id="new-talent-skill" placeholder="Contoh: Servis AC, Antar Air Galon" class="w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-1 focus:ring-brandBlue-500" required />
         </div>
         <div>
           <label class="block text-[9px] font-bold text-slate-500 uppercase mb-0.5">Keterangan Jasa *</label>
-          <textarea id="new-talent-desc" rows="4" placeholder="Jelaskan mengenai detail keahlian, hari aktif, tarif perkiraan..." class="w-full px-3 py-2 border rounded-lg focus:outline-none" required></textarea>
+          <textarea id="new-talent-desc" rows="4" placeholder="Jelaskan mengenai detail keahlian, hari aktif, tarif perkiraan..." class="w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-1 focus:ring-brandBlue-500" required></textarea>
         </div>
-        <button type="submit" class="w-full bg-emerald-700 hover:bg-emerald-600 text-white font-bold py-2.5 rounded-lg transition shadow-md">Daftarkan Jasa 📢</button>
+        <button type="submit" class="w-full bg-gradient-to-r from-brandGreen-600 to-brandBlue-600 text-white font-bold py-2.5 rounded-lg transition shadow-md">Daftarkan Jasa 📢</button>
       </form>
     </div>
   </div>
@@ -2245,7 +2212,7 @@
   <div id="full-photo-modal" class="fixed inset-0 bg-black/90 backdrop-blur-sm z-[60] hidden items-center justify-center p-4">
     <div class="relative max-w-lg w-full flex flex-col items-center">
       <button onclick="closeFullPhotoModal()" class="absolute -top-10 right-0 text-white text-3xl font-light hover:text-slate-300">✕</button>
-      <h4 id="full-photo-title" class="text-white text-xs font-bold tracking-wide mb-3 bg-emerald-950/80 px-4 py-1.5 rounded-full">Foto Lengkap</h4>
+      <h4 id="full-photo-title" class="text-white text-xs font-bold tracking-wide mb-3 bg-gradient-to-r from-brandBlue-950 via-brandBlue-900 to-brandGreen-950 px-4 py-1.5 rounded-full">Foto Lengkap</h4>
       <div class="bg-white p-2 rounded-2xl max-h-[80vh] overflow-hidden flex items-center justify-center shadow-2xl">
         <img id="full-photo-img" src="" class="max-w-full max-h-[70vh] object-contain rounded-xl shadow-inner" alt="Foto Lengkap" />
       </div>
