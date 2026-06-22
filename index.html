@@ -105,6 +105,7 @@
       onAuthStateChanged,
       signOut
     } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+    
     import { 
       getFirestore, 
       doc, 
@@ -212,6 +213,7 @@
           ]
         }
       ],
+      tempDepositProofs: {}, // base64 temp storage for poster uploads
       payoutProofs: {}, 
       qrisImage: "https://api.qrserver.com/v1/create-qr-code/?size=250x250&data=00020101021226590016ID102004404154601189328400001020044045204541153033605802ID5911Seblak%20iZZi6009JAKARTA%20T61051344062070703A016304CAE3",
       isLoggedIn: false,
@@ -350,8 +352,36 @@
       onSnapshot(publicDataJobsRef, (snapshot) => {
         isFirebaseConnected = true;
         const syncedJobs = [];
-        snapshot.forEach(doc => { syncedJobs.push({ id: doc.id, ...doc.data() }); });
-        if (syncedJobs.length > 0) { AppState.jobs = syncedJobs; renderApp(); }
+        let newAdminTaskTriggered = false;
+
+        snapshot.forEach(doc => { 
+          const job = { id: doc.id, ...doc.data() };
+          syncedJobs.push(job); 
+        });
+
+        if (syncedJobs.length > 0) {
+          // Check if total tasks needing admin verification has increased to play a sound
+          const currentAdmin = AppState.users.find(u => u.id === AppState.currentUserId);
+          if (currentAdmin && currentAdmin.role === 'admin') {
+            const currentPendingCount = syncedJobs.filter(j => 
+              (j.status === 'Menunggu Verifikasi Admin' || j.status === 'Dana Siap Cair') && j.paymentMethod === 'Rekber'
+            ).length;
+            
+            const cachedPendingCount = window.lastAdminPendingCount || 0;
+            if (currentPendingCount > cachedPendingCount) {
+              newAdminTaskTriggered = true;
+            }
+            window.lastAdminPendingCount = currentPendingCount;
+          }
+
+          AppState.jobs = syncedJobs; 
+          renderApp(); 
+
+          if (newAdminTaskTriggered) {
+            window.playNotificationChime();
+            window.showToast("⚠️ Pemberitahuan Admin: Ada tugas Rekber baru yang memerlukan tindakan verifikasi Anda!");
+          }
+        }
       });
 
       onSnapshot(publicDataTalentsRef, (snapshot) => {
@@ -706,6 +736,34 @@
       }
     };
 
+    window.handleDepositProofUpload = function(event, jobId) {
+      const file = event.target.files[0];
+      if (file) {
+        if (file.size > 2 * 1024 * 1024) {
+          showToast("⚠️ Maksimal ukuran bukti transfer adalah 2MB!");
+          return;
+        }
+        const reader = new FileReader();
+        reader.onloadend = () => {
+          AppState.tempDepositProofs = AppState.tempDepositProofs || {};
+          AppState.tempDepositProofs[jobId] = reader.result;
+          const container = document.getElementById(`deposit-proof-preview-container-${jobId}`);
+          const img = document.getElementById(`deposit-proof-preview-${jobId}`);
+          const btn = document.getElementById(`btn-submit-deposit-${jobId}`);
+          if (container && img) {
+            img.src = reader.result;
+            container.classList.remove("hidden");
+          }
+          if (btn) {
+            btn.removeAttribute("disabled");
+            btn.classList.remove("opacity-50", "cursor-not-allowed");
+          }
+          showToast("📸 Bukti transfer berhasil dimuat! Silakan kirim laporan.");
+        };
+        reader.readAsDataURL(file);
+      }
+    };
+
     window.handlePayoutProofUpload = function(event, jobId) {
       const file = event.target.files[0];
       if (file) {
@@ -776,12 +834,15 @@
 
       window.showCustomConfirm("Sepakati Pekerjaan", "Apakah Anda menyepakati pengerjaan tugas bersama warga ini?", "🤝", () => {
         const otherPartyId = chat.parties.find(p => p !== AppState.currentUserId);
+        const isMyOwnJob = job.posterId === AppState.currentUserId;
+        const workerId = isMyOwnJob ? otherPartyId : AppState.currentUserId;
+
         const isRekber = job.paymentMethod === 'Rekber';
         const targetStatus = isRekber ? "Menunggu Transfer Poster" : "Sedang Dikerjakan";
 
         AppState.jobs = AppState.jobs.map(j => {
           if (j.id === chat.jobId) {
-            const updatedJob = { ...j, status: targetStatus, workerId: otherPartyId };
+            const updatedJob = { ...j, status: targetStatus, workerId: workerId };
             if (db) { setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'jobs', j.id), updatedJob); }
             return updatedJob;
           }
@@ -804,18 +865,24 @@
       const chat = AppState.chats.find(c => c.id === chatId);
       if (!chat || !chat.jobId) return;
 
+      const depositProofBase64 = AppState.tempDepositProofs ? AppState.tempDepositProofs[chat.jobId] : null;
+      if (!depositProofBase64) {
+        showToast("❌ Harap unggah berkas bukti transfer terlebih dahulu!");
+        return;
+      }
+
       AppState.jobs = AppState.jobs.map(j => {
         if (j.id === chat.jobId) {
-          const updatedJob = { ...j, status: "Menunggu Verifikasi Admin" };
+          const updatedJob = { ...j, status: "Menunggu Verifikasi Admin", depositProof: depositProofBase64 };
           if (db) { setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'jobs', j.id), updatedJob); }
           return updatedJob;
         }
         return j;
       });
 
-      chat.messages.push({ senderId: "system", text: `💰 Poster melaporkan sudah transfer Rekber. Menunggu verifikasi admin edhos.`, time: "Sistem" });
+      chat.messages.push({ senderId: "system", text: `💰 Poster mengunggah bukti pembayaran Rekber. Menunggu verifikasi admin edhos.`, time: "Sistem" });
       if (db) { setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'chats', chatId), chat); }
-      showToast("💰 Pembayaran Rekber dilaporkan!");
+      showToast("💰 Pembayaran Rekber dilaporkan ke Admin!");
       renderApp();
     };
 
@@ -909,7 +976,7 @@
     window.approveRekberTransferByAdmin = function(jobId, chatId) {
       AppState.jobs = AppState.jobs.map(j => {
         if (j.id === jobId) {
-          const updatedJob = { ...j, status: "Dana Ditahan (Mulai Kerja)" };
+          const updatedJob = { ...j, status: "Dana Telah Diterima Admin" };
           if (db) { setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'jobs', j.id), updatedJob); }
           return updatedJob;
         }
@@ -919,7 +986,7 @@
       if (chatId) {
         const chat = AppState.chats.find(c => c.id === chatId);
         if (chat) {
-          chat.messages.push({ senderId: "system", text: `🛡️ Admin mengonfirmasi transfer masuk. Dana upah aman ditahan Rekber. Pekerja dipersilakan mulai bekerja!`, time: "Sistem" });
+          chat.messages.push({ senderId: "system", text: `🛡️ Admin mengonfirmasi transfer masuk. Dana Telah Diterima Admin. Pekerja dipersilakan mulai bekerja!`, time: "Sistem" });
           if (db) { setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'chats', chatId), chat); }
         }
       }
@@ -1224,6 +1291,11 @@
                  talent.description.toLowerCase().includes(AppState.searchQuery.toLowerCase());
         });
 
+        // Compute admin notification numbers
+        const pendingIncomingCount = AppState.jobs.filter(j => j.status === 'Menunggu Verifikasi Admin' && j.paymentMethod === 'Rekber').length;
+        const pendingPayoutCount = AppState.jobs.filter(j => j.status === 'Dana Siap Cair' && j.paymentMethod === 'Rekber').length;
+        const totalAdminTasks = pendingIncomingCount + pendingPayoutCount;
+
         let contentHtml = "";
 
         if (AppState.activeTab === "jobs") {
@@ -1256,8 +1328,8 @@
                   const isBtnDisabled = job.status !== 'Aktif';
 
                   let statusBadgeStyle = "bg-amber-50 text-amber-800 border-amber-100";
-                  if (job.status === "Pembayaran Diverifikasi" || job.status === "Dana Ditahan (Mulai Kerja)") {
-                    statusBadgeStyle = "bg-brandBlue-50 text-brandBlue-800 border-brandBlue-100";
+                  if (job.status === "Pembayaran Diverifikasi" || job.status === "Dana Telah Diterima Admin") {
+                    statusBadgeStyle = "bg-brandBlue-50 text-brandBlue-850 border-brandBlue-200";
                   } else if (job.status === "Selesai & Cair") {
                     statusBadgeStyle = "bg-slate-100 text-slate-600 border-slate-200";
                   } else if (job.status.startsWith("Menunggu") || job.status.startsWith("Dana Siap")) {
@@ -1478,7 +1550,7 @@
                           <button onclick="confirmPaymentToRekber('${activeChat.id}')" class="bg-brandBlue-600 hover:bg-brandBlue-500 text-white font-black px-3 py-1.5 rounded-lg text-[9px] transition shadow-sm">💰 Saya Sudah Transfer</button>
                         ` : ""}
 
-                        ${chatJob.paymentMethod === 'Rekber' && chatJob.status === 'Dana Ditahan (Mulai Kerja)' && chatJob.workerId === AppState.currentUserId ? `
+                        ${chatJob.paymentMethod === 'Rekber' && chatJob.status === 'Dana Telah Diterima Admin' && chatJob.workerId === AppState.currentUserId ? `
                           <button onclick="reportJobFinishedByWorker('${activeChat.id}')" class="bg-indigo-600 hover:bg-indigo-500 text-white font-black px-3 py-1.5 rounded-lg text-[9px] transition shadow-sm">🏁 Laporkan Selesai</button>
                         ` : ""}
 
@@ -1520,45 +1592,71 @@
                         </div>
                       ` : ""}
 
+                      <!-- REKBER: MENUNGGU TRANSFER POSTER (DIPISAH VIEW POSTER vs PEKERJA) -->
                       ${chatJob.paymentMethod === 'Rekber' && chatJob.status === 'Menunggu Transfer Poster' ? `
-                        <div class="bg-white p-3.5 rounded-2xl border border-sky-200 space-y-3 shadow-inner">
-                          <p class="font-bold text-slate-800">Petunjuk Pembayaran Pemberi Kerja:</p>
-                          <p class="text-[11px] text-slate-600 leading-relaxed font-light">Transfer total tagihan di bawah ini ke salah satu rekening bank resmi pengelola **Ahmad Nandar Suryadi**:</p>
-                          
-                          <div class="grid grid-cols-1 sm:grid-cols-3 gap-2.5 pt-1 text-center font-mono text-[11px]">
-                            ${REKBER_ACCOUNTS.map(acc => `
-                              <div class="bg-slate-50 border p-2.5 rounded-xl">
-                                <span class="font-bold block text-slate-700 text-[10px]">${acc.bank}</span>
-                                <span class="text-brandBlue-700 font-black block my-1">${acc.number}</span>
-                                <span class="text-[9px] text-slate-400 leading-none">a.n ${acc.holder}</span>
-                              </div>
-                            `).join("")}
-                          </div>
-
-                          <div class="border-t pt-3 flex flex-row items-center justify-between text-xs font-bold text-slate-800">
-                            <div>
-                              <p class="font-normal text-slate-400 text-[10px]">Upah Pekerja: Rp ${chatJob.budget.toLocaleString('id-ID')}</p>
-                              <p class="font-normal text-slate-400 text-[10px]">Biaya Admin: Rp ${REKBER_ADMIN_FEE.toLocaleString('id-ID')}</p>
-                              <p class="text-brandBlue-700 mt-0.5">Total Transfer: Rp ${(chatJob.budget + REKBER_ADMIN_FEE).toLocaleString('id-ID')}</p>
+                        ${chatJob.posterId === AppState.currentUserId ? `
+                          <!-- VIEW UNTUK POSTER: Menampilkan petunjuk transfer lengkap + Upload file -->
+                          <div class="bg-white p-3.5 rounded-2xl border border-sky-200 space-y-3 shadow-inner">
+                            <p class="font-bold text-slate-800">Petunjuk Pembayaran Pemberi Kerja:</p>
+                            <p class="text-[11px] text-slate-600 leading-relaxed font-light">Transfer total tagihan di bawah ini ke salah satu rekening bank resmi pengelola **Ahmad Nandar Suryadi**:</p>
+                            
+                            <div class="grid grid-cols-1 sm:grid-cols-3 gap-2.5 pt-1 text-center font-mono text-[11px]">
+                              ${REKBER_ACCOUNTS.map(acc => `
+                                <div class="bg-slate-50 border p-2.5 rounded-xl">
+                                  <span class="font-bold block text-slate-700 text-[10px]">${acc.bank}</span>
+                                  <span class="text-brandBlue-700 font-black block my-1">${acc.number}</span>
+                                  <span class="text-[9px] text-slate-400 leading-none">a.n ${acc.holder}</span>
+                                </div>
+                              `).join("")}
                             </div>
-                            ${chatJob.posterId === AppState.currentUserId ? `
-                              <button onclick="confirmPaymentToRekber('${activeChat.id}')" class="bg-brandBlue-600 hover:bg-brandBlue-700 text-white font-extrabold px-4 py-2 rounded-xl text-[10px] transition shadow">Saya Sudah Kirim</button>
-                            ` : `<span class="text-slate-400 text-[10px] italic">Menunggu Poster mentransfer...</span>`}
+
+                            <div class="bg-slate-50 p-3 rounded-xl border border-dashed border-sky-200 space-y-2">
+                              <p class="text-[10px] font-bold text-slate-700 uppercase">📤 Unggah Bukti Pembayaran Rekber</p>
+                              <div class="flex items-center gap-3">
+                                <input type="file" id="deposit-proof-${chatJob.id}" accept="image/*" onchange="handleDepositProofUpload(event, '${chatJob.id}')" class="hidden" />
+                                <label for="deposit-proof-${chatJob.id}" class="bg-gradient-to-r from-brandGreen-600 to-brandBlue-600 text-white font-extrabold text-[10px] px-3.5 py-2 rounded-lg cursor-pointer transition shadow hover:opacity-95">
+                                  📁 Pilih Bukti Pembayaran
+                                </label>
+                                <span class="text-[10px] text-slate-400 font-light">Maksimal file 2MB</span>
+                              </div>
+                              <div id="deposit-proof-preview-container-${chatJob.id}" class="hidden w-20 h-20 border rounded-lg overflow-hidden mt-2">
+                                <img id="deposit-proof-preview-${chatJob.id}" class="w-full h-full object-cover" />
+                              </div>
+                            </div>
+
+                            <div class="border-t pt-3 flex flex-row items-center justify-between text-xs font-bold text-slate-800">
+                              <div>
+                                <p class="font-normal text-slate-400 text-[10px]">Upah Pekerja: Rp ${chatJob.budget.toLocaleString('id-ID')}</p>
+                                <p class="font-normal text-slate-400 text-[10px]">Biaya Admin: Rp ${REKBER_ADMIN_FEE.toLocaleString('id-ID')}</p>
+                                <p class="text-brandBlue-700 mt-0.5">Total Transfer: Rp ${(chatJob.budget + REKBER_ADMIN_FEE).toLocaleString('id-ID')}</p>
+                              </div>
+                              <button id="btn-submit-deposit-${chatJob.id}" onclick="confirmPaymentToRekber('${activeChat.id}')" disabled class="bg-brandBlue-600 hover:bg-brandBlue-700 text-white font-extrabold px-4 py-2 rounded-xl text-[10px] transition shadow opacity-50 cursor-not-allowed">
+                                Kirim Bukti & Laporkan
+                              </button>
+                            </div>
                           </div>
-                        </div>
+                        ` : `
+                          <!-- VIEW UNTUK PEKERJA (TIDAK MENAMPILKAN DETAIL TRANSFER) -->
+                          <div class="bg-amber-50 p-4 rounded-2xl border border-amber-200 text-amber-900 space-y-1.5 shadow-inner">
+                            <p class="font-bold">⏳ Status Rekber: Menunggu Transfer Poster</p>
+                            <p class="text-[11px] leading-relaxed font-light">Pemberi Kerja (Poster) sedang diarahkan untuk melakukan transfer dana ke rekening Rekber Resmi Admin. Mohon tidak memulai pekerjaan sebelum status berubah menjadi <strong>"Dana Telah Diterima Admin"</strong>.</p>
+                          </div>
+                        `}
                       ` : ""}
 
                       ${chatJob.paymentMethod === 'Rekber' && chatJob.status === 'Menunggu Verifikasi Admin' ? `
                         <p class="text-[11px] text-slate-600 font-light">
-                          Pemberi kerja telah mengonfirmasi pembayaran. Dana sebesar **Rp ${(chatJob.budget + REKBER_ADMIN_FEE).toLocaleString('id-ID')}** sedang diproses cek mutasi oleh Admin. Pekerja harap tidak memulai pekerjaan sebelum status berubah menjadi **"Dana Ditahan (Mulai Kerja)"**.
+                          Pemberi kerja telah mengirim bukti transfer. Dana sebesar **Rp ${(chatJob.budget + REKBER_ADMIN_FEE).toLocaleString('id-ID')}** sedang diperiksa mutasinya oleh Admin. Pekerja harap menunggu hingga status berubah menjadi **"Dana Telah Diterima Admin"** sebelum mulai bekerja.
                         </p>
                       ` : ""}
 
-                      ${chatJob.paymentMethod === 'Rekber' && chatJob.status === 'Dana Ditahan (Mulai Kerja)' ? `
-                        <div class="bg-white p-3 rounded-xl border border-sky-200">
-                          <p class="text-[11px] text-brandBlue-850 font-bold">✓ DANA AMAN DI REKBER!</p>
-                          <p class="text-[11px] text-slate-600 mt-1 font-light leading-relaxed">
-                            Dana upah Pekerja sudah aman dipegang oleh Admin. Pekerja silakan melakukan tugas dengan maksimal. Jika tugas selesai, Pekerja silakan klik tombol **"Laporkan Selesai"** di kanan atas obrolan.
+                      ${chatJob.paymentMethod === 'Rekber' && chatJob.status === 'Dana Telah Diterima Admin' ? `
+                        <div class="bg-emerald-50 p-4 rounded-2xl border border-emerald-200 text-emerald-900 space-y-1.5">
+                          <p class="font-bold text-[11px] uppercase tracking-wide flex items-center gap-1">
+                            <span class="text-base">✓</span> Dana Telah Diterima Admin
+                          </p>
+                          <p class="text-[11px] text-slate-600 font-light leading-relaxed">
+                            Dana upah Pekerja sudah aman dipegang oleh Admin edhos. Pekerja silakan melakukan tugas dengan maksimal sekarang. Jika tugas selesai, Pekerja silakan klik tombol **"Laporkan Selesai"** di kanan atas obrolan.
                           </p>
                         </div>
                       ` : ""}
@@ -1580,9 +1678,9 @@
                         <div class="bg-emerald-50 border border-emerald-200 p-3.5 rounded-2xl space-y-2 text-slate-800">
                           <p class="font-bold text-emerald-800 text-[11px]">💸 Pembayaran Telah Dicairkan Admin!</p>
                           <p class="text-[10px] font-light">Admin edhos telah mentransfer upah Anda. Klik tombol di bawah untuk melihat bukti transfer resmi:</p>
-                          ${job.payoutProof ? `
-                            <button onclick="openFullPhotoModal('${job.payoutProof}', 'Bukti Transfer Admin')" class="bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold px-3 py-1.5 rounded-lg text-[9px] transition shadow">👁️ Lihat Bukti Transfer</button>
-                          ` : `<span class="text-slate-400 text-[9px] italic text-slate-400">Bukti transfer belum diunggah admin.</span>`}
+                          ${chatJob.payoutProof ? `
+                            <button onclick="openFullPhotoModal('${chatJob.payoutProof}', 'Bukti Transfer Admin')" class="bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold px-3 py-1.5 rounded-lg text-[9px] transition shadow">👁️ Lihat Bukti Transfer</button>
+                          ` : `<span class="text-slate-400 text-[9px] italic">Bukti transfer belum diunggah admin.</span>`}
                         </div>
                       ` : ""}
                     </div>
@@ -1749,7 +1847,12 @@
 
               <!-- VERIFIKASI REKBER TRANSFER MASUK -->
               <div class="bg-white rounded-3xl border p-6 shadow-sm">
-                <h3 class="font-extrabold text-slate-950 mb-4 text-sm">📥 1. Perlu Verifikasi Transfer Masuk (Poster)</h3>
+                <div class="flex items-center justify-between mb-4">
+                  <h3 class="font-extrabold text-slate-950 text-sm">📥 1. Perlu Verifikasi Transfer Masuk (Poster)</h3>
+                  ${pendingIncomingCount > 0 ? `
+                    <span class="bg-rose-500 text-white text-[10px] font-bold px-2 py-1 rounded-full animate-pulse">⚠️ Ada ${pendingIncomingCount} Transaksi Baru</span>
+                  ` : ""}
+                </div>
                 <div class="overflow-x-auto text-xs">
                   <table class="w-full text-left">
                     <thead>
@@ -1757,6 +1860,7 @@
                         <th class="p-3">Pekerjaan</th>
                         <th class="p-3">Dari Poster</th>
                         <th class="p-3">Total Tagihan (+Admin)</th>
+                        <th class="p-3">Bukti Pembayaran</th>
                         <th class="p-3 text-center">Aksi Mutasi</th>
                       </tr>
                     </thead>
@@ -1772,6 +1876,13 @@
                               <p class="text-[10px] text-slate-400">Unit: ${poster.unit}</p>
                             </td>
                             <td class="p-3 font-bold text-brandBlue-700">Rp ${(job.budget + REKBER_ADMIN_FEE).toLocaleString('id-ID')}</td>
+                            <td class="p-3">
+                              ${job.depositProof ? `
+                                <button onclick="openFullPhotoModal('${job.depositProof}', 'Bukti Transfer Poster')" class="bg-indigo-50 border border-indigo-200 text-indigo-700 px-3 py-1.5 rounded-lg font-bold text-[10px] hover:bg-indigo-100">
+                                  👁️ Lihat Bukti Poster
+                                </button>
+                              ` : `<span class="text-rose-600 font-light italic">Bukti transfer belum diunggah</span>`}
+                            </td>
                             <td class="p-3 text-center">
                               <button onclick="approveRekberTransferByAdmin('${job.id}', '${chatRef?.id}')" class="bg-gradient-to-r from-brandGreen-600 to-brandBlue-600 hover:opacity-90 text-white font-bold px-3 py-1.5 rounded-lg text-[10px] shadow">
                                 ✓ Mutasi Masuk & Izinkan Mulai Kerja
@@ -1781,7 +1892,7 @@
                         `;
                       }).join("")}
                       ${AppState.jobs.filter(j => j.status === 'Menunggu Verifikasi Admin' && j.paymentMethod === 'Rekber').length === 0 ? `
-                        <tr><td colspan="4" class="text-center text-slate-400 py-4 text-[11px] font-light">Tidak ada verifikasi transfer masuk tertunda.</td></tr>
+                        <tr><td colspan="5" class="text-center text-slate-400 py-4 text-[11px] font-light">Tidak ada verifikasi transfer masuk tertunda.</td></tr>
                       ` : ""}
                     </tbody>
                   </table>
@@ -1790,7 +1901,12 @@
 
               <!-- TRANSFER CAIR KE REKENING PEKERJA -->
               <div class="bg-white rounded-3xl border p-6 shadow-sm">
-                <h3 class="font-extrabold text-slate-950 mb-4 text-sm">📤 2. Perlu Transfer Cair ke Pekerja (Wajib Upload Bukti)</h3>
+                <div class="flex items-center justify-between mb-4">
+                  <h3 class="font-extrabold text-slate-950 text-sm">📤 2. Perlu Transfer Cair ke Pekerja (Wajib Upload Bukti)</h3>
+                  ${pendingPayoutCount > 0 ? `
+                    <span class="bg-rose-500 text-white text-[10px] font-bold px-2 py-1 rounded-full animate-pulse">💸 Ada ${pendingPayoutCount} Pencairan</span>
+                  ` : ""}
+                </div>
                 <div class="overflow-x-auto text-xs">
                   <table class="w-full text-left">
                     <thead>
@@ -1969,7 +2085,12 @@
                     <span class="hidden sm:inline font-bold">${currentUserData.name}</span>
                   </button>
                   ${currentUserData.role === 'admin' ? `
-                    <button onclick="changeTab('admin')" class="bg-gradient-to-r from-brandGreen-500 to-brandBlue-500 text-white hover:opacity-90 px-3 py-1.5 rounded-xl text-xs font-extrabold shadow-md">🛡️ Admin</button>
+                    <button onclick="changeTab('admin')" class="bg-gradient-to-r from-brandGreen-500 to-brandBlue-500 text-white hover:opacity-90 px-3 py-1.5 rounded-xl text-xs font-extrabold shadow-md flex items-center gap-1">
+                      <span>🛡️ Admin</span>
+                      ${totalAdminTasks > 0 ? `
+                        <span class="bg-rose-500 text-white text-[9px] px-1.5 py-0.5 rounded-full font-black animate-bounce">${totalAdminTasks}</span>
+                      ` : ""}
+                    </button>
                   ` : ""}
                   <!-- Tombol Logout yang Mudah Ditemukan -->
                   <button onclick="handleLogoutAction()" class="bg-rose-600 hover:bg-rose-700 text-white font-extrabold px-3 py-1.5 rounded-xl text-xs flex items-center space-x-1 transition shadow-md" title="Keluar Akun">
