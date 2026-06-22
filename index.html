@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <title>NuansaHub - Komunitas Nuansa Pondok Kelapa</title>
+  <title>Nuansa Hub - Komunitas Nuansa Pondok Kelapa</title>
   
   <script src="https://cdn.tailwindcss.com"></script>
   <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -87,7 +87,7 @@
       <div class="bg-white p-4 rounded-3xl shadow-2xl mb-4 animate-bounce max-w-[120px] border border-white/20">
         <img src="WhatsApp Image 2026-06-21 at 23.19.22.jpeg" onerror="this.onerror=null; this.src='https://placehold.co/150x150/0054a6/ffffff?text=Nuansa+Hub'" alt="Logo Nuansa Hub" class="w-full h-auto">
       </div>
-      <h1 class="text-xl font-bold tracking-tight text-white animate-pulse">Memulihkan Sesi NuansaHub...</h1>
+      <h1 class="text-xl font-bold tracking-tight text-white animate-pulse">Memulihkan Sesi Nuansa Hub...</h1>
       <p class="text-xs text-sky-300 mt-2 font-light">Menghubungkan ke Menara Samawa & Swasana</p>
     </div>
   </div>
@@ -1040,7 +1040,7 @@
 
       const chat = AppState.chats.find(c => c.jobId === jobId);
       if (chat) {
-        chat.messages.push({ senderId: "system", text: `🎉 Selesai! Admin sudah mentransfer uang upah bersih ke Pekerja. Terima kasih telah menggunakan Rekber NuansaHub! Pekerja berhak mendapat +25 Poin.`, time: "Sistem" });
+        chat.messages.push({ senderId: "system", text: `🎉 Selesai! Admin sudah mentransfer uang upah bersih ke Pekerja. Terima kasih telah menggunakan Rekber Nuansa Hub! Pekerja berhak mendapat +25 Poin.`, time: "Sistem" });
         if (db) { setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'chats', chat.id), chat); }
       }
 
@@ -1326,7 +1326,7 @@
                 <div class="space-y-1">
                   <span class="bg-gradient-to-r from-brandGreen-600 to-brandBlue-600 text-white text-[10px] font-black tracking-widest uppercase px-3 py-1 rounded-full border border-white/20">🛡️ Rekber Bersifat Opsional</span>
                   <h4 class="font-extrabold text-base sm:text-lg mt-2">Dukungan Transaksi Aman</h4>
-                  <p class="text-xs text-sky-100 font-light max-w-xl">Pilih metode bayar saat memasang tugas. Anda dapat menggunakan layanan **Rekber Ahmad Nandar Suryadi** demi keamanan prima, atau **Bayar Langsung** secara mandiri (Tanpa Biaya Admin)!</p>
+                  <p class="text-xs text-sky-100 font-light max-w-xl">Pilih metode bayar saat memasang tugas. Anda dapat menggunakan layanan <b>Rekber Ahmad Nandar Suryadi</b> demi keamanan prima, atau <b>Bayar Langsung</b> secara mandiri (Tanpa Biaya Admin)!</p>
                 </div>
                 <div class="flex-shrink-0 bg-white/10 px-4 py-2.5 rounded-2xl text-center border border-white/10">
                   <p class="text-[9px] uppercase tracking-wider text-sky-200">Biaya Admin Rekber</p>
@@ -1494,7 +1494,7 @@
               <div class="space-y-6 animate-fade-in">
                 <div class="border-b pb-3 border-slate-200">
                   <h3 class="text-xl font-extrabold text-slate-900 tracking-tight">📜 Histori & Alur Keuangan</h3>
-                  <p class="text-xs text-slate-500 font-light">Laporan keuangan mandiri dan pembayaran via Rekber NuansaHub.</p>
+                  <p class="text-xs text-slate-500 font-light">Laporan keuangan mandiri dan pembayaran via Rekber Nuansa Hub.</p>
                 </div>
 
                 <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
@@ -1711,19 +1711,19 @@
                         
                         ${chatJob.paymentMethod === 'Langsung' && chatJob.status === 'Sedang Dikerjakan' ? `
                           <p class="font-light leading-relaxed">
-                            Pekerjaan sedang berlangsung dengan kesepakatan **Pembayaran Langsung**. Setelah selesai, bayar mandiri.
+                            Pekerjaan sedang berlangsung dengan kesepakatan <b>Pembayaran Langsung</b>. Setelah selesai, bayar mandiri.
                           </p>
                         ` : ""}
 
                         ${chatJob.paymentMethod === 'Langsung' && chatJob.status === 'Menunggu Pelunasan Mandiri' ? `
                           <p class="font-light leading-relaxed text-slate-600">
-                            Pekerja selesai! Poster harap bayar langsung **Rp ${chatJob.budget.toLocaleString('id-ID')}** ke rek Pekerja: <strong>[${otherParty.workerBankName || 'Belum Diisi'}] ${otherParty.workerBankNumber || 'Kosong'}</strong> a.n ${otherParty.workerBankOwner || 'Kosong'}.
+                            Pekerja selesai! Poster harap bayar langsung <b>Rp ${chatJob.budget.toLocaleString('id-ID')}</b> ke rek Pekerja: <strong>[${otherParty.workerBankName || 'Belum Diisi'}] ${otherParty.workerBankNumber || 'Kosong'}</strong> a.n ${otherParty.workerBankOwner || 'Kosong'}.
                           </p>
                         ` : ""}
 
                         ${chatJob.paymentMethod === 'Rekber' && chatJob.status === 'Menunggu Transfer Poster' ? `
                           <p class="font-light leading-relaxed text-slate-600">
-                            Transfer total **Rp ${(chatJob.budget + REKBER_ADMIN_FEE).toLocaleString('id-ID')}** (Upah + Admin) ke Rekber Resmi. Cek petunjuk/unggah bukti via detail/mading utama.
+                            Transfer total <b>Rp ${(chatJob.budget + REKBER_ADMIN_FEE).toLocaleString('id-ID')}</b> (Upah + Admin) ke Rekber Resmi. Cek petunjuk/unggah bukti via detail/mading utama.
                           </p>
                         ` : ""}
 
@@ -2104,9 +2104,9 @@
         } else {
           contentHtml = `
             <div class="bg-white border border-slate-200 rounded-3xl p-8 max-w-2xl mx-auto space-y-4 shadow-sm animate-fade-in">
-              <h3 class="font-extrabold text-lg text-slate-950">Mengenai NuansaHub</h3>
+              <h3 class="font-extrabold text-lg text-slate-950">Mengenai Nuansa Hub</h3>
               <p class="text-xs sm:text-sm text-slate-600 leading-relaxed font-light">
-                <strong>NuansaHub</strong> adalah inovasi mandiri yang didirikan dan dipimpin oleh <strong>edhos (Admin)</strong> guna menggerakkan ekonomi mikro berbasis kegotongroyongan di lingkungan apartemen <strong>Nuansa Pondok Kelapa</strong> (meliputi Menara Samawa & Menara Swasana). 
+                <strong>Nuansa Hub</strong> adalah inovasi mandiri yang didirikan dan dipimpin oleh <strong>edhos (Admin)</strong> guna menggerakkan ekonomi mikro berbasis kegotongroyongan di lingkungan apartemen <strong>Nuansa Pondok Kelapa</strong> (meliputi Menara Samawa & Menara Swasana). 
               </p>
               <p class="text-xs sm:text-sm text-slate-600 leading-relaxed font-light">
                 Melalui aplikasi ini, sesama warga dapat berinteraksi, menyewa jasa profesional lokal, dan memposting tugas serabutan harian secara terpadu tanpa perantara.
@@ -2154,7 +2154,7 @@
                   </button>
                   ${currentUserData.role === 'admin' ? `
                     <button onclick="window.changeTab('admin')" class="bg-gradient-to-r from-brandGreen-500 to-brandBlue-500 text-white hover:opacity-90 px-3 py-1.5 rounded-xl text-xs font-extrabold shadow-md flex items-center gap-1">
-                      <span>🛡️ Admin</span>
+                      <span>🛡️</span>
                       ${totalAdminTasks > 0 ? `
                         <span class="bg-rose-500 text-white text-[9px] px-1.5 py-0.5 rounded-full font-black animate-bounce">${totalAdminTasks}</span>
                       ` : ""}
@@ -2496,12 +2496,12 @@
       <div class="flex justify-between items-center pb-2 border-b">
         <div class="text-left">
           <h4 class="font-extrabold text-xs tracking-wider text-brandBlue-800 uppercase">QRIS Dukungan Server</h4>
-          <p class="text-[10px] text-slate-400">Atas nama: Seblak iZZi / NuansaHub</p>
+          <p class="text-[10px] text-slate-400">Atas nama: Seblak iZZi</p>
         </div>
         <button onclick="closeQRISModal()" class="text-slate-400 font-bold hover:text-slate-700">✕</button>
       </div>
       <div class="bg-slate-50 border rounded-2xl p-4 flex flex-col items-center">
-        <p class="text-base font-black text-slate-800">Dukungan Server NuansaHub</p>
+        <p class="text-base font-black text-slate-800">Dukungan Server Nuansa Hub</p>
         <div class="bg-white p-2.5 rounded-xl border my-3 shadow-inner max-w-[210px]">
           <img src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 1 1'%3E%3C/svg%3E" id="qris-image-view" class="w-full h-auto object-contain cursor-zoom-in" onclick="openFullPhotoModal(this.src, 'QRIS Server')" alt="QRIS Dukungan" />
         </div>
