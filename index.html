@@ -123,7 +123,8 @@
       query, 
       onSnapshot, 
       addDoc, 
-      updateDoc
+      updateDoc,
+      deleteDoc
     } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
     // Konfigurasi cadangan aman
@@ -473,6 +474,27 @@
       });
     };
 
+    // --- STREAMING_CHUNK: Restoring Persisted Login Session ---
+    const checkPersistedSession = async () => {
+      if (!db || !auth.currentUser) return;
+      try {
+        const deviceUid = auth.currentUser.uid;
+        const sessionRef = doc(db, 'artifacts', appId, 'users', deviceUid, 'session', 'active');
+        const sessionSnap = await getDoc(sessionRef);
+        if (sessionSnap.exists()) {
+          const sessionData = sessionSnap.data();
+          if (sessionData && sessionData.loggedInUserId) {
+            AppState.isLoggedIn = true;
+            AppState.isGuestMode = false;
+            AppState.currentUserId = sessionData.loggedInUserId;
+            console.log("Sesi login otomatis dipulihkan untuk user:", sessionData.loggedInUserId);
+          }
+        }
+      } catch (e) {
+        console.warn("Gagal memulihkan sesi otomatis:", e);
+      }
+    };
+
     // --- STREAMING_CHUNK: Initializing App and Sign-In Anon ---
     const initFirebaseAuth = async () => {
       const hideLoader = () => {
@@ -492,6 +514,10 @@
       try {
         await signInAnonymously(auth);
         isFirebaseConnected = true;
+        
+        // Memeriksa dan memulihkan sesi login dari Firestore
+        await checkPersistedSession();
+        
         syncFirestoreData();
       } catch (err) {
         console.warn("Autentikasi Firebase gagal. Beroperasi dalam mode offline.", err);
@@ -561,6 +587,16 @@
         AppState.currentUserId = user.id;
         AppState.activeTab = "jobs";
         closeAuthModal();
+        
+        // Simpan dokumen sesi aktif ke Firestore berdasarkan deviceUid pengguna
+        if (db && auth.currentUser) {
+          const deviceUid = auth.currentUser.uid;
+          setDoc(doc(db, 'artifacts', appId, 'users', deviceUid, 'session', 'active'), {
+            loggedInUserId: user.id,
+            updatedAt: new Date().toISOString()
+          }).catch(err => console.warn("Gagal mencatat sesi aktif online:", err));
+        }
+
         showToast(`🔑 Selamat datang kembali, ${user.name}!`);
         renderApp();
       } else {
@@ -619,6 +655,16 @@
       AppState.currentUserId = newId;
       AppState.activeTab = "jobs";
       closeAuthModal();
+
+      // Simpan dokumen sesi aktif ke Firestore setelah registrasi sukses
+      if (db && auth.currentUser) {
+        const deviceUid = auth.currentUser.uid;
+        setDoc(doc(db, 'artifacts', appId, 'users', deviceUid, 'session', 'active'), {
+          loggedInUserId: newId,
+          updatedAt: new Date().toISOString()
+        }).catch(err => console.warn("Gagal menyimpan sesi registrasi online:", err));
+      }
+
       renderApp();
     };
 
@@ -629,6 +675,14 @@
         AppState.currentUserId = null;
         AppState.activeChatId = null;
         AppState.activeTab = "jobs";
+        
+        // Hapus dokumen sesi aktif di Firestore agar saat direfresh tidak login lagi
+        if (db && auth.currentUser) {
+          const deviceUid = auth.currentUser.uid;
+          deleteDoc(doc(db, 'artifacts', appId, 'users', deviceUid, 'session', 'active'))
+            .catch(err => console.warn("Gagal menghapus sesi online:", err));
+        }
+
         showToast("👋 Berhasil keluar dari akun.");
         renderApp();
       });
