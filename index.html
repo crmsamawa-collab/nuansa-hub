@@ -445,6 +445,20 @@
       initFirebaseAuth();
     };
 
+    window.selectChat = function(chatId) {
+      AppState.activeChatId = chatId;
+      if (!AppState.unreadChats) {
+        AppState.unreadChats = {};
+      }
+      AppState.unreadChats[chatId] = false;
+      renderApp();
+    };
+
+    window.closeActiveChat = function() {
+      AppState.activeChatId = null;
+      renderApp();
+    };
+
     window.changeTab = function(tabName) {
       if ((tabName === 'chats' || tabName === 'profile') && (!AppState.isLoggedIn || AppState.isGuestMode)) {
         openGuestWarningModal("Mengakses halaman pribadi / obrolan");
@@ -1363,10 +1377,12 @@
             }
           }
 
+          const hasActiveChat = activeChat !== null;
+
           contentHtml = `
             <div class="bg-white rounded-3xl border border-slate-200 shadow-lg overflow-hidden grid grid-cols-1 lg:grid-cols-12 min-h-[500px]">
               <!-- List Diskusi Kiri -->
-              <div class="lg:col-span-4 border-r border-slate-200 flex flex-col bg-slate-50/50">
+              <div class="lg:col-span-4 border-r border-slate-200 flex flex-col bg-slate-50/50 ${hasActiveChat ? 'hidden lg:flex' : 'flex'}">
                 <div class="p-4 border-b border-slate-200 bg-white">
                   <h3 class="font-extrabold text-sm text-slate-900">Diskusi Warga</h3>
                 </div>
@@ -1388,7 +1404,7 @@
                     const hasUnread = AppState.unreadChats && AppState.unreadChats[c.id];
 
                     return `
-                      <button onclick="window.AppState.activeChatId = '${c.id}'; if(AppState.unreadChats) AppState.unreadChats['${c.id}'] = false; renderApp();" class="w-full p-4 text-left transition flex items-start space-x-3 text-xs ${isSelected ? 'bg-sky-50 border-l-4 border-brandBlue-600' : 'hover:bg-slate-100'}">
+                      <button onclick="window.selectChat('${c.id}')" class="w-full p-4 text-left transition flex items-start space-x-3 text-xs ${isSelected ? 'bg-sky-50 border-l-4 border-brandBlue-600' : 'hover:bg-slate-100'}">
                         <div class="relative flex-shrink-0">
                           <img src="${other.avatar}" onclick="event.stopPropagation(); openFullPhotoModal('${other.avatar}', '${other.name}')" class="w-8 h-8 rounded-full object-cover aspect-square border cursor-zoom-in" alt="avatar" />
                           ${hasUnread ? `<span class="absolute top-0 right-0 w-2.5 h-2.5 bg-rose-600 rounded-full ring-2 ring-white"></span>` : ""}
@@ -1408,10 +1424,13 @@
               </div>
 
               <!-- Area Obrolan Kanan -->
-              <div class="lg:col-span-8 flex flex-col justify-between bg-white">
+              <div class="lg:col-span-8 flex flex-col justify-between bg-white ${hasActiveChat ? 'flex' : 'hidden lg:flex'}">
                 ${activeChat ? `
                   <div class="p-4 border-b border-slate-200 bg-slate-50 flex justify-between items-center text-xs">
                     <div class="flex items-center space-x-2">
+                      <button onclick="window.closeActiveChat()" class="lg:hidden p-1 mr-1 text-slate-600 hover:text-slate-900 font-extrabold text-base" title="Kembali ke Daftar">
+                        ←
+                      </button>
                       <img src="${otherParty.avatar}" onclick="openFullPhotoModal('${otherParty.avatar}', '${otherParty.name}')" class="w-8 h-8 rounded-full object-cover aspect-square cursor-zoom-in" alt="avatar" />
                       <div>
                         <h4 class="font-bold text-slate-800">${otherParty.name} (${otherParty.unit})</h4>
@@ -1902,19 +1921,17 @@
                   <div class="flex items-center space-x-1.5">
                     <h1 class="text-sm sm:text-base font-extrabold tracking-tight leading-none text-white">Nuansa<span class="text-brandGreen-400">Hub</span></h1>
                     ${isFirebaseConnected ? `
-                      <div class="flex items-center space-x-1" title="Terhubung ke Firebase">
-                        <span class="relative flex h-2 w-2">
+                      <div class="flex items-center" title="Terhubung">
+                        <span class="relative flex h-2.5 w-2.5">
                           <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-brandGreen-400 opacity-75"></span>
-                          <span class="relative inline-flex rounded-full h-2 w-2 bg-brandGreen-400"></span>
+                          <span class="relative inline-flex rounded-full h-2.5 w-2.5 bg-brandGreen-400"></span>
                         </span>
-                        <span class="text-[8px] text-brandGreen-400 font-bold hidden sm:inline">Terhubung</span>
                       </div>
                     ` : `
-                      <div class="flex items-center space-x-1" title="Mencoba Menghubungkan...">
-                        <span class="relative flex h-2 w-2">
-                          <span class="relative inline-flex rounded-full h-2 w-2 bg-amber-500"></span>
+                      <div class="flex items-center" title="Offline / Menghubungkan...">
+                        <span class="relative flex h-2.5 w-2.5">
+                          <span class="relative inline-flex rounded-full h-2.5 w-2.5 bg-amber-500 animate-pulse"></span>
                         </span>
-                        <span class="text-[8px] text-amber-400 font-bold hidden sm:inline">Offline / Menghubungkan...</span>
                       </div>
                     `}
                   </div>
