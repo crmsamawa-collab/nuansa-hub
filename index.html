@@ -76,6 +76,13 @@
     .animate-zoom-in {
       animation: zoomIn 0.25s cubic-bezier(0.16, 1, 0.3, 1) forwards;
     }
+    @keyframes pulseSoft {
+      0%, 100% { transform: scale(1); opacity: 1; }
+      50% { transform: scale(1.05); opacity: 0.9; }
+    }
+    .animate-pulse-soft {
+      animation: pulseSoft 2s infinite ease-in-out;
+    }
   </style>
 </head>
 <body class="bg-slate-50 text-slate-800 pb-24 min-h-screen flex flex-col">
@@ -85,7 +92,8 @@
     <!-- Tampilan Memuat (Loading State) Awal -->
     <div id="initial-loader" class="fixed inset-0 bg-gradient-to-br from-brandBlue-950 via-brandBlue-900 to-brandGreen-950 flex flex-col items-center justify-center z-50 text-white p-6">
       <div class="bg-white p-4 rounded-3xl shadow-2xl mb-4 animate-bounce max-w-[120px] border border-white/20">
-        <img src="WhatsApp Image 2026-06-21 at 23.19.22.jpeg" onerror="this.onerror=null; this.src='https://placehold.co/150x150/0054a6/ffffff?text=Nuansa+Hub'" alt="Logo Nuansa Hub" class="w-full h-auto">
+        <!-- Menggunakan gambar fallback jika gambar lokal tidak dimuat -->
+        <img src="WhatsApp Image 2026-06-21 at 23.19.22.jpeg" onerror="this.onerror=null; this.src='https://placehold.co/150x150/0054a6/ffffff?text=Nuansa+Hub'" alt="Logo Nuansa Hub" class="w-full h-auto rounded-xl">
       </div>
       <h1 class="text-xl font-bold tracking-tight text-white">Memuat NuansaHub...</h1>
       <p class="text-xs text-sky-300 mt-2 font-light">Menghubungkan ke Menara Samawa & Swasana</p>
@@ -191,7 +199,7 @@
       "Apa warna mobil/motor pertama Anda?"
     ];
 
-    // --- STREAMING_CHUNK: Declaring Local Fallback AppState ---
+    // --- STREAMING_CHUNK: Setting Local Fallback AppState & Realtime Notification States ---
     window.AppState = {
       users: [
         { id: "u-admin", name: "edhos", tower: "Menara Samawa", unit: "Menara Samawa - 0102", phone: "082220691212", password: "admin", role: "admin", verified: true, points: 999, avatar: PRESET_AVATARS[0], securityQuestion: SECURITY_QUESTIONS[0], securityAnswer: "sd pondok kelapa", workerBankName: "BCA", workerBankNumber: "123456789", workerBankOwner: "edhos Admin" },
@@ -200,8 +208,8 @@
         { id: "u-3", name: "Rian Hidayat", tower: "Menara Samawa", unit: "Menara Samawa - 1205", phone: "08123456789", password: "warga", role: "warga", verified: true, points: 80, avatar: PRESET_AVATARS[4], securityQuestion: SECURITY_QUESTIONS[3], securityAnswer: "hitam", workerBankName: "DKI", workerBankNumber: "456123789", workerBankOwner: "Rian Hidayat" }
       ],
       jobs: [
-        { id: "job-1", title: "Bantu Pindahan Sofa & Meja ke Lantai 15", category: "Serabutan", budget: 150000, posterId: "u-3", description: "Minta tolong 2 orang berbadan sehat untuk angkat sofa lipat dan meja makan dari lobi Menara Samawa ke unit kami di lantai 12. Estimasi pengerjaan cepat sekitar 1 jam saja.", createdAt: "2 jam lalu", status: "Aktif", workerId: null, paymentMethod: "Langsung" },
-        { id: "job-2", title: "Jasa Pembersihan Unit Apartemen Kosong", category: "Profesional", budget: 200000, posterId: "u-2", description: "Perlu jasa deep cleaning untuk unit di Menara Samawa sebelum disewakan bulan depan. Alat-alat pembersih standar sudah disediakan di dalam unit.", createdAt: "5 jam lalu", status: "Aktif", workerId: null, paymentMethod: "Rekber" }
+        { id: "job-1", title: "Bantu Pindahan Sofa & Meja ke Lantai 15", category: "Serabutan", budget: 150000, posterId: "u-3", description: "Minta tolong 2 orang berbadan sehat untuk angkat sofa lipat dan meja makan dari lobi Menara Samawa ke unit kami di lantai 12. Estimasi pengerjaan cepat sekitar 1 jam saja.", createdAt: "2 jam lalu", targetDate: "2026-06-25", status: "Aktif", workerId: null, paymentMethod: "Langsung", transferProof: "" },
+        { id: "job-2", title: "Jasa Pembersihan Unit Apartemen Kosong", category: "Profesional", budget: 200000, posterId: "u-2", description: "Perlu jasa deep cleaning untuk unit di Menara Samawa sebelum disewakan bulan depan. Alat-alat pembersih standar sudah disediakan di dalam unit.", createdAt: "5 jam lalu", targetDate: "2026-06-28", status: "Aktif", workerId: null, paymentMethod: "Rekber", transferProof: "" }
       ],
       talents: [
         { id: "talent-1", userId: "u-1", skill: "Servis AC, TV & Komputer", description: "Melayani jasa perawatan/cuci AC, perbaikan TV mati total, instalasi ulang laptop, dan perbaikan jaringan WiFi lambat khusus untuk warga Nuansa Pondok Kelapa.", rating: 4.9, reviews: 24 }
@@ -242,6 +250,10 @@
       workerBankOwner: ""
     };
 
+    // Tracker untuk mendeteksi pesan baru dan menembakkan notifikasi
+    const knownMessageCounts = {};
+    let isInitialChatsLoad = true;
+
     window.getPosterDetail = function(posterId) {
       return AppState.users.find(u => u.id === posterId) || { 
         name: "Warga Nuansa", 
@@ -251,6 +263,43 @@
       };
     };
 
+    // --- STREAMING_CHUNK: Play Message Notification Sound ---
+    window.playNotificationChime = function() {
+      try {
+        const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        
+        // Nada pertama (lebih rendah)
+        const osc1 = audioCtx.createOscillator();
+        const gain1 = audioCtx.createGain();
+        osc1.type = 'sine';
+        osc1.frequency.setValueAtTime(523.25, audioCtx.currentTime); // C5
+        gain1.gain.setValueAtTime(0.12, audioCtx.currentTime);
+        gain1.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.15);
+        osc1.connect(gain1);
+        gain1.connect(audioCtx.destination);
+        osc1.start();
+        osc1.stop(audioCtx.currentTime + 0.15);
+
+        // Nada kedua (lebih tinggi dan ceria)
+        setTimeout(() => {
+          const osc2 = audioCtx.createOscillator();
+          const gain2 = audioCtx.createGain();
+          osc2.type = 'sine';
+          osc2.frequency.setValueAtTime(659.25, audioCtx.currentTime); // E5
+          gain2.gain.setValueAtTime(0.15, audioCtx.currentTime);
+          gain2.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.3);
+          osc2.connect(gain2);
+          gain2.connect(audioCtx.destination);
+          osc2.start();
+          osc2.stop(audioCtx.currentTime + 0.3);
+        }, 120);
+
+      } catch (e) {
+        console.warn("Web Audio API belum didukung atau diblokir oleh browser:", e);
+      }
+    };
+
+    // --- STREAMING_CHUNK: In-App Toast & Floating Message Notification ---
     window.showToast = function(message) {
       const toastContainer = document.getElementById("toast-alert");
       if (toastContainer) {
@@ -263,8 +312,67 @@
         toastContainer.style.display = "block";
         setTimeout(() => {
           toastContainer.style.display = "none";
-        }, 3500);
+        }, 4000);
       }
+    };
+
+    window.triggerIncomingMessageNotification = function(senderName, textPreview, chatId) {
+      // Mainkan suara chime kustom
+      playNotificationChime();
+
+      const container = document.getElementById("message-floating-notifier");
+      if (container) {
+        container.innerHTML = `
+          <div onclick="window.openSpecificChat('${chatId}')" class="bg-gradient-to-r from-brandBlue-950 to-brandBlue-900 border border-sky-400/40 text-white p-4 rounded-3xl shadow-2xl max-w-sm w-[90vw] flex items-center space-x-3 cursor-pointer hover:scale-105 transition-all duration-200 animate-slide-up pointer-events-auto">
+            <div class="bg-sky-500/20 p-2 rounded-full text-xl flex-shrink-0 animate-pulse-soft">
+              💬
+            </div>
+            <div class="min-w-0 flex-grow">
+              <div class="flex justify-between items-center">
+                <p class="text-xs font-black text-sky-300">Pesan Masuk dari ${senderName}</p>
+                <span class="bg-emerald-500 text-[8px] px-1.5 py-0.5 rounded-full font-bold">BARU</span>
+              </div>
+              <p class="text-xs text-white truncate mt-1">${textPreview}</p>
+            </div>
+          </div>
+        `;
+        container.style.display = "block";
+        
+        // Sembunyikan otomatis setelah 5 detik
+        setTimeout(() => {
+          container.style.display = "none";
+        }, 5000);
+      }
+    };
+
+    window.openSpecificChat = function(chatId) {
+      const container = document.getElementById("message-floating-notifier");
+      if (container) container.style.display = "none";
+      AppState.activeChatId = chatId;
+      AppState.activeTab = "chats";
+      renderApp();
+    };
+
+    // --- STREAMING_CHUNK: Setup Kustom Modal Dialog untuk Mengganti Alert & Confirm ---
+    window.showCustomConfirm = function(title, message, onConfirm) {
+      const modal = document.getElementById("custom-confirm-modal");
+      if (modal) {
+        document.getElementById("custom-confirm-title").innerText = title;
+        document.getElementById("custom-confirm-message").innerText = message;
+        
+        const confirmBtn = document.getElementById("custom-confirm-yes");
+        confirmBtn.onclick = function() {
+          modal.style.display = "none";
+          if (onConfirm) onConfirm();
+        };
+        
+        modal.style.display = "flex";
+      }
+    };
+
+    window.closeCustomConfirm = function() {
+      const modal = document.getElementById("custom-confirm-modal");
+      if (modal) modal.style.display = "none";
     };
 
     // --- STREAMING_CHUNK: Setup Cloud Firestore Synchronization ---
@@ -335,7 +443,24 @@
       onSnapshot(publicDataChatsRef, (snapshot) => {
         isFirebaseConnected = true;
         const syncedChats = [];
-        snapshot.forEach(doc => { syncedChats.push({ id: doc.id, ...doc.data() }); });
+        snapshot.forEach(doc => { 
+          const chatData = doc.data();
+          syncedChats.push({ id: doc.id, ...chatData }); 
+          
+          // Deteksi pesan baru untuk menembakkan notifikasi
+          const messagesCount = chatData.messages ? chatData.messages.length : 0;
+          if (!isInitialChatsLoad && messagesCount > (knownMessageCounts[doc.id] || 0)) {
+            const lastMsg = chatData.messages[messagesCount - 1];
+            // Pastikan bukan pesan dari diri sendiri atau pesan otomatis sistem
+            if (lastMsg && lastMsg.senderId !== AppState.currentUserId && lastMsg.senderId !== "system") {
+              const sender = AppState.users.find(u => u.id === lastMsg.senderId) || { name: "Tetangga" };
+              triggerIncomingMessageNotification(sender.name, lastMsg.text, doc.id);
+            }
+          }
+          knownMessageCounts[doc.id] = messagesCount;
+        });
+
+        isInitialChatsLoad = false;
         if (syncedChats.length > 0) { AppState.chats = syncedChats; renderApp(); }
       });
 
@@ -498,19 +623,20 @@
     };
 
     window.handleLogoutAction = function() {
-      AppState.isLoggedIn = false;
-      AppState.isGuestMode = true;
-      AppState.currentUserId = null;
-      AppState.activeChatId = null;
-      AppState.activeTab = "jobs";
-      showToast("👋 Berhasil keluar dari akun.");
-      renderApp();
+      showCustomConfirm("Keluar Akun", "Apakah Anda yakin ingin keluar dari akun Anda saat ini?", () => {
+        AppState.isLoggedIn = false;
+        AppState.isGuestMode = true;
+        AppState.currentUserId = null;
+        AppState.activeChatId = null;
+        AppState.activeTab = "jobs";
+        showToast("👋 Berhasil keluar dari akun.");
+        renderApp();
+      });
     };
 
     // --- STREAMING_CHUNK: Admin and Profile Actions ---
     window.resetUserPasswordByAdmin = function(userId) {
-      const isConfirmed = confirm("Reset sandi warga menjadi 'Nuansa123'?");
-      if (isConfirmed) {
+      showCustomConfirm("Reset Sandi", "Reset sandi warga menjadi 'Nuansa123'?", () => {
         AppState.users = AppState.users.map(u => u.id === userId ? { ...u, password: "Nuansa123" } : u);
         if (db) {
           updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'users', userId), { password: "Nuansa123" })
@@ -518,7 +644,7 @@
         }
         showToast("🔑 Sandi berhasil direset menjadi Nuansa123!");
         renderApp();
-      }
+      });
     };
 
     window.toggleUserVerification = function(userId) {
@@ -538,8 +664,7 @@
     };
 
     window.deleteJobByAdmin = function(jobId) {
-      const isConfirmed = confirm("Hapus postingan loker ini?");
-      if (isConfirmed) {
+      showCustomConfirm("Hapus Lowongan", "Apakah Anda yakin ingin menghapus postingan lowongan tugas ini?", () => {
         AppState.jobs = AppState.jobs.filter(j => j.id !== jobId);
         if (db) {
           setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'jobs', jobId), {}).then(() => {
@@ -549,7 +674,7 @@
           showToast("🗑️ Postingan berhasil dihapus.");
         }
         renderApp();
-      }
+      });
     };
 
     window.handleProfileImageUpload = function(event) {
@@ -589,6 +714,48 @@
           } else {
             showToast("📱 QRIS tersimpan lokal.");
           }
+          renderApp();
+        };
+        reader.readAsDataURL(file);
+      }
+    };
+
+    // --- STREAMING_CHUNK: Admin Upload Transfer Proof for Rekber ---
+    window.handleAdminTransferProofUpload = function(event, jobId) {
+      const file = event.target.files[0];
+      if (file) {
+        if (file.size > 3 * 1024 * 1024) {
+          showToast("⚠️ Maksimal ukuran bukti transfer adalah 3MB!");
+          return;
+        }
+        const reader = new FileReader();
+        reader.onloadend = () => {
+          const proofBase64 = reader.result;
+          
+          AppState.jobs = AppState.jobs.map(j => {
+            if (j.id === jobId) {
+              const updatedJob = { ...j, transferProof: proofBase64 };
+              if (db) {
+                setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'jobs', j.id), updatedJob);
+              }
+              return updatedJob;
+            }
+            return j;
+          });
+
+          const chat = AppState.chats.find(c => c.jobId === jobId);
+          if (chat) {
+            chat.messages.push({ 
+              senderId: "system", 
+              text: `📸 Admin telah mengunggah bukti transfer pencairan upah ke rekening Pekerja. Pekerja dipersilakan memeriksa riwayat rekening & bukti transfer di panel obrolan ini!`, 
+              time: "Sistem" 
+            });
+            if (db) {
+              setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'chats', chat.id), chat);
+            }
+          }
+
+          showToast("📸 Bukti transfer berhasil diunggah!");
           renderApp();
         };
         reader.readAsDataURL(file);
@@ -635,7 +802,6 @@
     };
 
     // --- STREAMING_CHUNK: ESCROW SYSTEM - AGREEMENT & WORKFLOW ---
-    // 1. Poster agrees with Worker
     window.markJobAsAgreed = function(chatId) {
       const chat = AppState.chats.find(c => c.id === chatId);
       if (!chat || !chat.jobId) return;
@@ -643,55 +809,57 @@
       const job = AppState.jobs.find(j => j.id === chat.jobId);
       if (!job) return;
 
-      const otherPartyId = chat.parties.find(p => p !== AppState.currentUserId);
-      const isRekber = job.paymentMethod === 'Rekber';
-      const targetStatus = isRekber ? "Menunggu Transfer Poster" : "Sedang Dikerjakan";
+      showCustomConfirm("Sepakati Kerja", "Apakah Anda sepakat memberikan tugas ini kepada warga tersebut?", () => {
+        const otherPartyId = chat.parties.find(p => p !== AppState.currentUserId);
+        const isRekber = job.paymentMethod === 'Rekber';
+        const targetStatus = isRekber ? "Menunggu Transfer Poster" : "Sedang Dikerjakan";
 
-      AppState.jobs = AppState.jobs.map(j => {
-        if (j.id === chat.jobId) {
-          const updatedJob = { ...j, status: targetStatus, workerId: otherPartyId };
-          if (db) {
-            setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'jobs', j.id), updatedJob);
+        AppState.jobs = AppState.jobs.map(j => {
+          if (j.id === chat.jobId) {
+            const updatedJob = { ...j, status: targetStatus, workerId: otherPartyId };
+            if (db) {
+              setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'jobs', j.id), updatedJob);
+            }
+            return updatedJob;
           }
-          return updatedJob;
+          return j;
+        });
+
+        const sysText = isRekber
+          ? `🤝 Pekerjaan disepakati via Rekber. Poster harap mentransfer Upah + Admin ke salah satu rekening pengelola.`
+          : `🤝 Kesepakatan Bayar Langsung terjalin. Pekerja silakan mulai memproses tugas.`;
+
+        chat.messages.push({ senderId: "system", text: sysText, time: "Sistem" });
+
+        if (db) {
+          setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'chats', chatId), chat);
         }
-        return j;
+        showToast("🤝 Pekerjaan berhasil disepakati!");
+        renderApp();
       });
-
-      const sysText = isRekber
-        ? `🤝 Pekerjaan disepakati via Rekber. Poster harap mentransfer Upah + Admin ke salah satu rekening pengelola.`
-        : `🤝 Kesepakatan Bayar Langsung terjalin. Pekerja silakan mulai memproses tugas.`;
-
-      chat.messages.push({ senderId: "system", text: sysText, time: "Sistem" });
-
-      if (db) {
-        setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'chats', chatId), chat);
-      }
-      showToast("🤝 Pekerjaan berhasil disepakati!");
-      renderApp();
     };
 
-    // 2. Poster reports payment sent to Rekber
     window.confirmPaymentToRekber = function(chatId) {
       const chat = AppState.chats.find(c => c.id === chatId);
       if (!chat || !chat.jobId) return;
 
-      AppState.jobs = AppState.jobs.map(j => {
-        if (j.id === chat.jobId) {
-          const updatedJob = { ...j, status: "Menunggu Verifikasi Admin" };
-          if (db) { setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'jobs', j.id), updatedJob); }
-          return updatedJob;
-        }
-        return j;
-      });
+      showCustomConfirm("Konfirmasi Transfer", "Apakah Anda benar-benar sudah transfer dana sebesar upah + admin?", () => {
+        AppState.jobs = AppState.jobs.map(j => {
+          if (j.id === chat.jobId) {
+            const updatedJob = { ...j, status: "Menunggu Verifikasi Admin" };
+            if (db) { setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'jobs', j.id), updatedJob); }
+            return updatedJob;
+          }
+          return j;
+        });
 
-      chat.messages.push({ senderId: "system", text: `💰 Poster melaporkan sudah transfer Rekber. Menunggu verifikasi admin edhos.`, time: "Sistem" });
-      if (db) { setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'chats', chatId), chat); }
-      showToast("💰 Pembayaran Rekber dilaporkan!");
-      renderApp();
+        chat.messages.push({ senderId: "system", text: `💰 Poster melaporkan sudah transfer Rekber. Menunggu verifikasi admin edhos.`, time: "Sistem" });
+        if (db) { setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'chats', chatId), chat); }
+        showToast("💰 Pembayaran Rekber dilaporkan!");
+        renderApp();
+      });
     };
 
-    // 3. Worker reports job finished
     window.reportJobFinishedByWorker = function(chatId) {
       const chat = AppState.chats.find(c => c.id === chatId);
       if (!chat || !chat.jobId) return;
@@ -699,49 +867,51 @@
       const job = AppState.jobs.find(j => j.id === chat.jobId);
       if (!job) return;
 
-      const isRekber = job.paymentMethod === 'Rekber';
-      const targetStatus = isRekber ? "Menunggu Lepas Dana" : "Menunggu Pelunasan Mandiri";
+      showCustomConfirm("Laporkan Selesai", "Laporkan ke Poster bahwa Anda telah menyelesaikan tugas ini?", () => {
+        const isRekber = job.paymentMethod === 'Rekber';
+        const targetStatus = isRekber ? "Menunggu Lepas Dana" : "Menunggu Pelunasan Mandiri";
 
-      AppState.jobs = AppState.jobs.map(j => {
-        if (j.id === chat.jobId) {
-          const updatedJob = { ...j, status: targetStatus };
-          if (db) { setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'jobs', j.id), updatedJob); }
-          return updatedJob;
-        }
-        return j;
+        AppState.jobs = AppState.jobs.map(j => {
+          if (j.id === chat.jobId) {
+            const updatedJob = { ...j, status: targetStatus };
+            if (db) { setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'jobs', j.id), updatedJob); }
+            return updatedJob;
+          }
+          return j;
+        });
+
+        const sysText = isRekber
+          ? `🏁 Pekerja melaporkan tugas selesai. Poster harap cek hasil kerja, lalu klik Lepas Dana jika sesuai.`
+          : `🏁 Tugas dinyatakan selesai! Poster silakan transfer pembayaran ke pekerja, lalu konfirmasi lunas.`;
+
+        chat.messages.push({ senderId: "system", text: sysText, time: "Sistem" });
+        if (db) { setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'chats', chatId), chat); }
+        showToast("🏁 Pekerjaan dilaporkan selesai!");
+        renderApp();
       });
-
-      const sysText = isRekber
-        ? `🏁 Pekerja melaporkan tugas selesai. Poster harap cek hasil kerja, lalu klik Lepas Dana jika sesuai.`
-        : `🏁 Tugas dinyatakan selesai! Poster silakan transfer pembayaran ke pekerja, lalu konfirmasi lunas.`;
-
-      chat.messages.push({ senderId: "system", text: sysText, time: "Sistem" });
-      if (db) { setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'chats', chatId), chat); }
-      showToast("🏁 Pekerjaan dilaporkan selesai!");
-      renderApp();
     };
 
-    // 4. Poster releases Rekber funds
     window.releaseEscrowToWorker = function(chatId) {
       const chat = AppState.chats.find(c => c.id === chatId);
       if (!chat || !chat.jobId) return;
 
-      AppState.jobs = AppState.jobs.map(j => {
-        if (j.id === chat.jobId) {
-          const updatedJob = { ...j, status: "Dana Siap Cair" };
-          if (db) { setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'jobs', j.id), updatedJob); }
-          return updatedJob;
-        }
-        return j;
-      });
+      showCustomConfirm("Lepas Dana Rekber", "Apakah hasil pekerjaan sudah sesuai dan Anda menyetujui pelepasan dana ini?", () => {
+        AppState.jobs = AppState.jobs.map(j => {
+          if (j.id === chat.jobId) {
+            const updatedJob = { ...j, status: "Dana Siap Cair" };
+            if (db) { setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'jobs', j.id), updatedJob); }
+            return updatedJob;
+          }
+          return j;
+        });
 
-      chat.messages.push({ senderId: "system", text: `🔓 Poster menyetujui pelepasan dana. Admin edhos akan segera mentransfer upah bersih ke Pekerja.`, time: "Sistem" });
-      if (db) { setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'chats', chatId), chat); }
-      showToast("🔓 Dana Rekber dilepas!");
-      renderApp();
+        chat.messages.push({ senderId: "system", text: `🔓 Poster menyetujui pelepasan dana. Admin edhos akan segera mentransfer upah bersih ke Pekerja.`, time: "Sistem" });
+        if (db) { setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'chats', chatId), chat); }
+        showToast("🔓 Dana Rekber dilepas!");
+        renderApp();
+      });
     };
 
-    // 5. Poster confirms direct payment cleared
     window.confirmDirectPaymentCleared = function(chatId) {
       const chat = AppState.chats.find(c => c.id === chatId);
       if (!chat || !chat.jobId) return;
@@ -749,34 +919,35 @@
       const job = AppState.jobs.find(j => j.id === chat.jobId);
       if (!job) return;
 
-      AppState.jobs = AppState.jobs.map(j => {
-        if (j.id === chat.jobId) {
-          const updatedJob = { ...j, status: "Selesai & Cair" };
-          if (db) { setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'jobs', j.id), updatedJob); }
-          return updatedJob;
-        }
-        return j;
-      });
+      showCustomConfirm("Konfirmasi Lunas", "Konfirmasi bahwa Anda telah membayar lunas dan menyelesaikan transaksi?", () => {
+        AppState.jobs = AppState.jobs.map(j => {
+          if (j.id === chat.jobId) {
+            const updatedJob = { ...j, status: "Selesai & Cair" };
+            if (db) { setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'jobs', j.id), updatedJob); }
+            return updatedJob;
+          }
+          return j;
+        });
 
-      // Reward +25 points
-      const workerId = job.workerId;
-      AppState.users = AppState.users.map(u => {
-        if (u.id === workerId) {
-          const updated = { ...u, points: (u.points || 0) + 25 };
-          if (db) { setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'users', u.id), updated); }
-          return updated;
-        }
-        return u;
-      });
+        // Reward +25 poin
+        const workerId = job.workerId;
+        AppState.users = AppState.users.map(u => {
+          if (u.id === workerId) {
+            const updated = { ...u, points: (u.points || 0) + 25 };
+            if (db) { setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'users', u.id), updated); }
+            return updated;
+          }
+          return u;
+        });
 
-      chat.messages.push({ senderId: "system", text: `🎉 Selesai! Pembayaran lunas terverifikasi. Pekerja mendapatkan +25 Poin Gotong Royong.`, time: "Sistem" });
-      if (db) { setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'chats', chatId), chat); }
-      showToast("🎉 Transaksi selesai sepenuhnya!");
-      renderApp();
+        chat.messages.push({ senderId: "system", text: `🎉 Selesai! Pembayaran lunas terverifikasi. Pekerja mendapatkan +25 Poin Gotong Royong.`, time: "Sistem" });
+        if (db) { setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'chats', chatId), chat); }
+        showToast("🎉 Transaksi selesai sepenuhnya!");
+        renderApp();
+      });
     };
 
     // --- STREAMING_CHUNK: ADMIN EXCLUSIVE TRANSACTIONS (REKBER ACTIONS) ---
-    // A1. Admin approves incoming deposit
     window.approveRekberTransferByAdmin = function(jobId, chatId) {
       AppState.jobs = AppState.jobs.map(j => {
         if (j.id === jobId) {
@@ -799,39 +970,40 @@
       renderApp();
     };
 
-    // A2. Admin pays out to Worker and finishes flow
     window.payoutWorkerByAdmin = function(jobId) {
       const job = AppState.jobs.find(j => j.id === jobId);
       if (!job) return;
 
-      AppState.jobs = AppState.jobs.map(j => {
-        if (j.id === jobId) {
-          const updatedJob = { ...j, status: "Selesai & Cair" };
-          if (db) { setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'jobs', j.id), updatedJob); }
-          return updatedJob;
+      showCustomConfirm("Cairkan Dana", "Konfirmasi bahwa Anda sudah mentransfer uang upah ke Pekerja?", () => {
+        AppState.jobs = AppState.jobs.map(j => {
+          if (j.id === jobId) {
+            const updatedJob = { ...j, status: "Selesai & Cair" };
+            if (db) { setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'jobs', j.id), updatedJob); }
+            return updatedJob;
+          }
+          return j;
+        });
+
+        // Reward +25 poin
+        const workerId = job.workerId;
+        AppState.users = AppState.users.map(u => {
+          if (u.id === workerId) {
+            const updated = { ...u, points: (u.points || 0) + 25 };
+            if (db) { setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'users', u.id), updated); }
+            return updated;
+          }
+          return u;
+        });
+
+        const chat = AppState.chats.find(c => c.jobId === jobId);
+        if (chat) {
+          chat.messages.push({ senderId: "system", text: `🎉 Selesai! Admin telah mencairkan dana upah bersih ke Pekerja. Terima kasih telah menggunakan Rekber NuansaHub! Pekerja berhak mendapat +25 Poin.`, time: "Sistem" });
+          if (db) { setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'chats', chat.id), chat); }
         }
-        return j;
+
+        showToast("💸 Upah berhasil ditransfer ke Pekerja!");
+        renderApp();
       });
-
-      // Award +25 points
-      const workerId = job.workerId;
-      AppState.users = AppState.users.map(u => {
-        if (u.id === workerId) {
-          const updated = { ...u, points: (u.points || 0) + 25 };
-          if (db) { setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'users', u.id), updated); }
-          return updated;
-        }
-        return u;
-      });
-
-      const chat = AppState.chats.find(c => c.jobId === jobId);
-      if (chat) {
-        chat.messages.push({ senderId: "system", text: `🎉 Selesai! Admin sudah mentransfer uang upah bersih ke Pekerja. Terima kasih telah menggunakan Rekber NuansaHub! Pekerja berhak mendapat +25 Poin.`, time: "Sistem" });
-        if (db) { setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'chats', chat.id), chat); }
-      }
-
-      showToast("💸 Upah berhasil ditransfer ke Pekerja!");
-      renderApp();
     };
 
     // --- STREAMING_CHUNK: Setting Chat Initiation with Job Link ---
@@ -916,6 +1088,13 @@
 
       if (db) {
         setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'chats', AppState.activeChatId), updatedChat);
+      } else {
+        // Mode fallback lokal: Trigger notifikasi simulasi untuk test offline
+        setTimeout(() => {
+          const otherId = activeChat.parties.find(p => p !== AppState.currentUserId);
+          const sender = getPosterDetail(otherId);
+          triggerIncomingMessageNotification(sender.name, "Halo! Saya telah membaca penawaran Anda.", AppState.activeChatId);
+        }, 1200);
       }
 
       document.getElementById("chat-message-input").value = "";
@@ -997,6 +1176,7 @@
       const category = document.getElementById("new-job-category").value;
       const budget = Number(document.getElementById("new-job-budget").value);
       const paymentMethod = document.getElementById("new-job-payment-method").value;
+      const targetDate = document.getElementById("new-job-date").value;
       const desc = document.getElementById("new-job-desc").value;
 
       const newJobId = `job-${Date.now()}`;
@@ -1006,11 +1186,13 @@
         category,
         budget,
         paymentMethod,
+        targetDate,
         posterId: AppState.currentUserId,
         description: desc,
         createdAt: "Baru saja",
         status: "Aktif",
-        workerId: null
+        workerId: null,
+        transferProof: ""
       };
 
       AppState.jobs.push(newJob);
@@ -1046,6 +1228,17 @@
       document.getElementById("talent-creation-modal").style.display = "none";
       showToast("🛠️ Penawaran Jasa Anda berhasil didaftarkan!");
       renderApp();
+    };
+
+    // Helper format tanggal Indonesia
+    window.formatDateId = function(dateStr) {
+      if (!dateStr) return "Scepatnya";
+      try {
+        const date = new Date(dateStr);
+        return date.toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' });
+      } catch (e) {
+        return dateStr;
+      }
     };
 
     // --- STREAMING_CHUNK: CORE RENDERER ENGINE (COMPLYING WITH FLUID LAYOUTS) ---
@@ -1140,7 +1333,13 @@
                         </div>
 
                         <h4 class="font-extrabold text-slate-900 text-lg mb-2 leading-snug">${job.title}</h4>
-                        <p class="text-slate-600 text-xs sm:text-sm mb-5 leading-relaxed font-light">${job.description}</p>
+                        <p class="text-slate-600 text-xs sm:text-sm mb-4 leading-relaxed font-light">${job.description}</p>
+
+                        <!-- TANGGAL PENGERJAAN -->
+                        <div class="mb-4 flex items-center space-x-2 text-xs font-semibold text-amber-800 bg-amber-50 border border-amber-100 px-3.5 py-2.5 rounded-2xl w-fit">
+                          <span>📅 Target Kerja:</span>
+                          <span class="font-bold">${formatDateId(job.targetDate)}</span>
+                        </div>
 
                         <div class="bg-slate-50 rounded-2xl p-3 border border-slate-100 flex items-center justify-between mb-5">
                           <div class="flex items-center space-x-3">
@@ -1247,8 +1446,9 @@
             <div class="bg-white rounded-3xl border border-slate-200 shadow-lg overflow-hidden grid grid-cols-1 lg:grid-cols-12 min-h-[500px]">
               <!-- List Diskusi Kiri -->
               <div class="lg:col-span-4 border-r border-slate-200 flex flex-col bg-slate-50/50">
-                <div class="p-4 border-b border-slate-200 bg-white">
+                <div class="p-4 border-b border-slate-200 bg-white flex justify-between items-center">
                   <h3 class="font-extrabold text-sm text-slate-900">Diskusi Warga</h3>
+                  <span class="bg-sky-500 text-white font-bold text-[10px] px-2 py-0.5 rounded-full">${myChats.length} Sesi</span>
                 </div>
                 <div class="flex-grow overflow-y-auto divide-y divide-slate-150">
                   ${myChats.map(c => {
@@ -1286,9 +1486,9 @@
               <!-- Area Obrolan Kanan -->
               <div class="lg:col-span-8 flex flex-col justify-between bg-white">
                 ${activeChat ? `
-                  <div class="p-4 border-b border-slate-200 bg-slate-50 flex justify-between items-center text-xs">
+                  <div class="p-4 border-b border-slate-200 bg-slate-50 flex flex-wrap justify-between items-center gap-2 text-xs">
                     <div class="flex items-center space-x-2">
-                      <img src="${otherParty.avatar}" onclick="openFullPhotoModal('${otherParty.avatar}', '${otherParty.name}')" class="w-8 h-8 rounded-full object-cover aspect-square cursor-zoom-in" alt="avatar" />
+                      <img src="${otherParty.avatar}" onclick="openFullPhotoModal('${otherParty.avatar}', '${otherParty.name}')" class="w-8 h-8 rounded-full object-cover aspect-square cursor-zoom-in animate-pulse-soft" alt="avatar" />
                       <div>
                         <h4 class="font-bold text-slate-800">${otherParty.name} (${otherParty.unit})</h4>
                         <p class="text-[9px] text-slate-400">${jobTitleDisplay}</p>
@@ -1296,7 +1496,7 @@
                     </div>
 
                     ${chatJob ? `
-                      <div class="flex space-x-1.5">
+                      <div class="flex flex-wrap gap-1.5">
                         <!-- 1. POSTER & PEKERJA DEAL (Kesepakatan) -->
                         ${chatJob.status === 'Aktif' && chatJob.posterId === AppState.currentUserId ? `
                           <button onclick="markJobAsAgreed('${activeChat.id}')" class="bg-amber-500 hover:bg-amber-400 text-slate-950 font-black px-3 py-1.5 rounded-lg text-[9px] transition shadow-sm">🤝 Sepakati Pekerjaan</button>
@@ -1423,9 +1623,21 @@
 
                       <!-- JALUR REKBER: FLOW DANA SIAP CAIR -->
                       ${chatJob.paymentMethod === 'Rekber' && chatJob.status === 'Dana Siap Cair' ? `
-                        <p class="text-[11px] text-sky-850 font-bold">
-                          ✓ Kesepakatan Selesai! Admin Ahmad Nandar Suryadi sedang mentransfer upah bersih sebesar **Rp ${chatJob.budget.toLocaleString('id-ID')}** ke nomor rekening Pekerja. Terima kasih atas kerja samanya!
-                        </p>
+                        <div class="bg-white p-3.5 rounded-2xl border border-sky-200 space-y-2">
+                          <p class="text-[11px] text-sky-850 font-bold">
+                            ✓ Kesepakatan Selesai! Admin Ahmad Nandar Suryadi sedang mentransfer upah bersih sebesar **Rp ${chatJob.budget.toLocaleString('id-ID')}** ke nomor rekening Pekerja.
+                          </p>
+                          ${chatJob.transferProof ? `
+                            <div class="bg-emerald-50 border border-emerald-200 p-3 rounded-xl flex items-center justify-between text-emerald-900 mt-2">
+                              <span class="text-xs font-bold">🖼️ Bukti Transfer Tersedia!</span>
+                              <button onclick="openFullPhotoModal('${chatJob.transferProof}', 'Bukti Transfer Cair Rekber')" class="bg-emerald-600 hover:bg-emerald-700 text-white font-bold px-3 py-1 rounded-lg text-[10px] transition shadow">
+                                Lihat Bukti Transfer
+                              </button>
+                            </div>
+                          ` : `
+                            <p class="text-[10px] text-slate-400 italic">Bukti pencairan sedang diunggah oleh Admin...</p>
+                          `}
+                        </div>
                       ` : ""}
                     </div>
                   ` : ""}
@@ -1437,8 +1649,8 @@
                       
                       if (isSystem) {
                         return `
-                          <div class="bg-sky-50 border border-sky-100 p-3 rounded-2xl text-center text-[10px] text-sky-900 max-w-md mx-auto my-2">
-                            ${m.text}
+                          <div class="bg-sky-50 border border-sky-100 p-3 rounded-2xl text-center text-[10px] text-sky-900 max-w-md mx-auto my-2 space-y-2">
+                            <p>${m.text}</p>
                           </div>
                         `;
                       }
@@ -1491,8 +1703,8 @@
                   </span>
                 </div>
 
-                <button onclick="handleLogoutAction()" class="w-full bg-rose-50 hover:bg-rose-100 text-rose-800 font-bold py-2.5 rounded-2xl text-xs transition border border-rose-200 shadow-sm">
-                  Keluar / Logout 🚪
+                <button onclick="handleLogoutAction()" class="w-full bg-rose-50 hover:bg-rose-100 text-rose-800 font-bold py-2.5 rounded-2xl text-xs transition border border-rose-200 shadow-sm flex items-center justify-center space-x-1.5">
+                  <span>Keluar / Logout Akun</span> <span>🚪</span>
                 </button>
               </div>
 
@@ -1632,7 +1844,7 @@
 
               <!-- TRANSFER CAIR KE REKENING PEKERJA (ADMIN ONLY) -->
               <div class="bg-white rounded-3xl border p-6 shadow-sm">
-                <h3 class="font-extrabold text-slate-950 mb-4 text-sm">📤 2. Perlu Transfer Cair ke Pekerja</h3>
+                <h3 class="font-extrabold text-slate-950 mb-4 text-sm">📤 2. Perlu Transfer Cair ke Pekerja & Unggah Bukti</h3>
                 <div class="overflow-x-auto text-xs">
                   <table class="w-full text-left">
                     <thead>
@@ -1641,6 +1853,7 @@
                         <th class="p-3">Nama Pekerja</th>
                         <th class="p-3">Data Rekening Tujuan</th>
                         <th class="p-3">Upah Bersih Cair</th>
+                        <th class="p-3">Unggah Bukti Transfer</th>
                         <th class="p-3 text-center">Aksi Transfer</th>
                       </tr>
                     </thead>
@@ -1662,6 +1875,21 @@
                               </div>
                             </td>
                             <td class="p-3 font-black text-brandBlue-700">Rp ${job.budget.toLocaleString('id-ID')}</td>
+                            <td class="p-3">
+                              <!-- UPLOAD BUKTI TRANSFER UNTUK REKBER -->
+                              <div class="space-y-2 min-w-[150px]">
+                                <input type="file" id="proof-upload-${job.id}" accept="image/*" class="hidden" onchange="handleAdminTransferProofUpload(event, '${job.id}')" />
+                                <label for="proof-upload-${job.id}" class="inline-flex items-center space-x-1.5 bg-sky-50 text-sky-800 border border-sky-200 px-3 py-1.5 rounded-xl cursor-pointer text-[10px] font-bold hover:bg-sky-100 transition shadow-sm">
+                                  <span>📷 Unggah Bukti</span>
+                                </label>
+                                ${job.transferProof ? `
+                                  <div class="flex items-center space-x-1">
+                                    <span class="text-emerald-600 font-bold text-[9px]">✓ Berhasil diunggah</span>
+                                    <button onclick="openFullPhotoModal('${job.transferProof}', 'Bukti Cair')" class="text-brandBlue-600 hover:underline text-[9px] font-semibold">(Pratinjau)</button>
+                                  </div>
+                                ` : `<p class="text-[9px] text-slate-400 italic">Belum ada file bukti</p>`}
+                              </div>
+                            </td>
                             <td class="p-3 text-center">
                               <button onclick="payoutWorkerByAdmin('${job.id}')" class="bg-amber-500 hover:bg-amber-600 text-slate-950 font-black px-3 py-2 rounded-lg text-[10px] shadow">
                                 💸 Saya Sudah Transfer & Selesai
@@ -1671,7 +1899,7 @@
                         `;
                       }).join("")}
                       ${AppState.jobs.filter(j => j.status === 'Dana Siap Cair' && j.paymentMethod === 'Rekber').length === 0 ? `
-                        <tr><td colspan="5" class="text-center text-slate-400 py-4 text-[11px] font-light">Tidak ada pencairan upah tertunda.</td></tr>
+                        <tr><td colspan="6" class="text-center text-slate-400 py-4 text-[11px] font-light">Tidak ada pencairan upah tertunda.</td></tr>
                       ` : ""}
                     </tbody>
                   </table>
@@ -1769,7 +1997,7 @@
             <div class="max-w-6xl mx-auto px-4 py-3 flex flex-row items-center justify-between gap-4">
               <div class="flex items-center space-x-3 cursor-pointer" onclick="changeTab('jobs')">
                 <div class="bg-white p-1 rounded-xl shadow-md max-w-[42px] border border-white/20">
-                  <img src="WhatsApp Image 2026-06-21 at 23.19.22.jpeg" onerror="this.onerror=null; this.src='https://placehold.co/150x150/0054a6/ffffff?text=Nuansa+Hub'" alt="Logo Nuansa Hub" class="w-full h-auto">
+                  <img src="WhatsApp Image 2026-06-21 at 23.19.22.jpeg" onerror="this.onerror=null; this.src='https://placehold.co/150x150/0054a6/ffffff?text=Nuansa+Hub'" alt="Logo Nuansa Hub" class="w-full h-auto rounded-lg">
                 </div>
                 <div>
                   <div class="flex items-center space-x-1.5">
@@ -1796,7 +2024,7 @@
                 </div>
               </div>
 
-              <!-- Login / Profile Section -->
+              <!-- Login / Profile & LOGOUT SECTION DI POJOK KANAN ATAS -->
               <div class="flex items-center space-x-2">
                 ${AppState.isLoggedIn && currentUserData ? `
                   <button onclick="changeTab('profile')" class="bg-white/10 px-3 py-1.5 rounded-xl text-xs font-bold border border-white/20 hover:bg-white/20 transition flex items-center space-x-2">
@@ -1806,6 +2034,11 @@
                   ${currentUserData.role === 'admin' ? `
                     <button onclick="changeTab('admin')" class="bg-gradient-to-r from-brandGreen-500 to-brandBlue-500 text-white hover:opacity-90 px-3 py-1.5 rounded-xl text-xs font-extrabold shadow-md">🛡️ Admin</button>
                   ` : ""}
+                  
+                  <!-- TOMBOL LOGOUT SEGERA YANG SANGAT MUDAH DITEMUKAN -->
+                  <button onclick="handleLogoutAction()" class="bg-rose-600 hover:bg-rose-700 text-white font-extrabold px-3 py-1.5 rounded-xl text-xs transition duration-150 shadow-md flex items-center space-x-1" title="Keluar Akun">
+                    <span>Keluar</span> <span>🚪</span>
+                  </button>
                 ` : `
                   <button onclick="openAuthModal('login')" class="bg-gradient-to-r from-brandGreen-500 to-brandBlue-500 text-white hover:opacity-95 font-black px-4 py-2 rounded-xl text-xs shadow-md">🔑 Masuk / Daftar</button>
                 `}
@@ -1893,8 +2126,8 @@
               <span class="text-lg">🛠️</span>
               <span class="text-[9px] tracking-tight mt-0.5 font-bold">Jasa</span>
             </button>
-            <button onclick="changeTab('chats')" class="flex flex-col items-center justify-center w-14 py-1 transition-all ${AppState.activeTab === 'chats' ? 'text-brandBlue-600 scale-110 font-bold' : 'text-slate-400 font-normal'}">
-              <span class="text-lg relative">💬</span>
+            <button onclick="changeTab('chats')" class="flex flex-col items-center justify-center w-14 py-1 transition-all ${AppState.activeTab === 'chats' ? 'text-brandBlue-600 scale-110 font-bold' : 'text-slate-400 font-normal'} relative">
+              <span class="text-lg">💬</span>
               <span class="text-[9px] tracking-tight mt-0.5 font-bold">Obrolan</span>
             </button>
             <button onclick="changeTab('profile')" class="flex flex-col items-center justify-center w-14 py-1 transition-all ${AppState.activeTab === 'profile' ? 'text-brandBlue-600 scale-110 font-bold' : 'text-slate-400 font-normal'}">
@@ -2092,8 +2325,28 @@
 
   </script>
 
-  <!-- ================= NOTIFIKASI TOAST DITAMPILKAN DISINI ================= -->
+  <!-- ================= STREAMING_CHUNK: Injecting Floating Notifications & Toast Elements ================= -->
+  <!-- FLOATING FLOATING MESSAGES NOTIFIER -->
+  <div id="message-floating-notifier" class="fixed top-20 right-4 left-4 sm:left-auto sm:right-6 z-[100] hidden pointer-events-none"></div>
+
+  <!-- NOTIFIKASI TOAST DITAMPILKAN DISINI -->
   <div id="toast-alert" class="fixed top-5 left-1/2 transform -translate-x-1/2 z-50 hidden"></div>
+
+  <!-- ================= DIALOG KONFIRMASI KUSTOM (MENGGANTI CONFIRM DEFAULT BROWSER) ================= -->
+  <div id="custom-confirm-modal" class="fixed inset-0 bg-black/60 backdrop-blur-sm z-[100] hidden items-center justify-center p-4">
+    <div class="bg-white rounded-3xl shadow-2xl w-full max-w-sm overflow-hidden animate-zoom-in border border-slate-200">
+      <div class="bg-gradient-to-r from-brandBlue-950 to-brandBlue-900 text-white p-5">
+        <h4 id="custom-confirm-title" class="font-bold text-sm tracking-tight">Konfirmasi Tindakan</h4>
+      </div>
+      <div class="p-6 space-y-4">
+        <p id="custom-confirm-message" class="text-xs text-slate-600 leading-relaxed font-light">Apakah Anda yakin dengan keputusan ini?</p>
+        <div class="flex space-x-2 pt-2">
+          <button id="custom-confirm-yes" class="w-1/2 bg-gradient-to-r from-brandGreen-600 to-brandBlue-600 text-white font-extrabold py-2.5 rounded-xl text-xs shadow transition hover:opacity-95">Ya, Setuju</button>
+          <button onclick="closeCustomConfirm()" class="w-1/2 bg-slate-100 hover:bg-slate-200 text-slate-600 font-bold py-2.5 rounded-xl text-xs transition border">Batal</button>
+        </div>
+      </div>
+    </div>
+  </div>
 
   <!-- ================= MODAL 1: AUTENTIKASI (LOGIN & DAFTAR) ================= -->
   <div id="auth-modal" class="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 hidden items-center justify-center p-4">
@@ -2145,7 +2398,7 @@
     </div>
   </div>
 
-  <!-- ================= MODAL 4: PASANG LOWONGAN KERJAAN BARU ================= -->
+  <!-- ================= MODAL 4: PASANG LOWONGAN KERJAAN BARU DENGAN TANGGAL PENGERJAAN ================= -->
   <div id="job-creation-modal" class="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 hidden items-center justify-center p-4">
     <div class="bg-white rounded-3xl shadow-xl w-full max-w-sm overflow-hidden animate-zoom-in">
       <div class="bg-gradient-to-r from-brandBlue-950 via-brandBlue-900 to-brandGreen-950 text-white px-5 py-3.5 flex justify-between items-center text-xs">
@@ -2171,6 +2424,13 @@
             <input type="number" id="new-job-budget" placeholder="50000" class="w-full px-3 py-1.5 border rounded-lg focus:outline-none focus:ring-1 focus:ring-brandBlue-500" required />
           </div>
         </div>
+        
+        <!-- TANGGAL TARGET PENGERJAAN -->
+        <div>
+          <label class="block text-[9px] font-bold text-slate-500 uppercase mb-0.5">Tanggal Target Pengerjaan Tugas *</label>
+          <input type="date" id="new-job-date" class="w-full px-3 py-2 border rounded-lg bg-white focus:outline-none focus:ring-1 focus:ring-brandBlue-500" required />
+        </div>
+
         <div>
           <label class="block text-[9px] font-bold text-slate-500 uppercase mb-0.5">Metode Pembayaran *</label>
           <select id="new-job-payment-method" class="w-full px-2 py-1.5 border rounded-lg bg-white focus:outline-none">
@@ -2208,8 +2468,8 @@
     </div>
   </div>
 
-  <!-- ================= MODAL 6: TAMPILAN LIHAT FOTO UTUH / LEBIH BESAR ================= -->
-  <div id="full-photo-modal" class="fixed inset-0 bg-black/90 backdrop-blur-sm z-[60] hidden items-center justify-center p-4">
+  <!-- ================= MODAL 6: TAMPILAN LIHAT FOTO UTUH / BUKTI TRANSFER LEBIH BESAR ================= -->
+  <div id="full-photo-modal" class="fixed inset-0 bg-black/90 backdrop-blur-sm z-[200] hidden items-center justify-center p-4">
     <div class="relative max-w-lg w-full flex flex-col items-center">
       <button onclick="closeFullPhotoModal()" class="absolute -top-10 right-0 text-white text-3xl font-light hover:text-slate-300">✕</button>
       <h4 id="full-photo-title" class="text-white text-xs font-bold tracking-wide mb-3 bg-gradient-to-r from-brandBlue-950 via-brandBlue-900 to-brandGreen-950 px-4 py-1.5 rounded-full">Foto Lengkap</h4>
