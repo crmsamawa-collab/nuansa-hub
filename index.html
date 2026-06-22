@@ -644,6 +644,25 @@
       });
     };
 
+    window.cancelJobByPoster = function(jobId) {
+      window.showCustomConfirm(
+        "Batalkan Lowongan", 
+        "Apakah Anda yakin ingin membatalkan postingan ini karena kesalahan isian atau sudah dikerjakan orang lain?", 
+        "🗑️", 
+        () => {
+          AppState.jobs = AppState.jobs.filter(j => j.id !== jobId);
+          if (db) {
+            setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'jobs', jobId), {}).then(() => {
+              showToast("🗑️ Lowongan berhasil dibatalkan & dihapus.");
+            });
+          } else {
+            showToast("🗑️ Lowongan berhasil dibatalkan.");
+          }
+          renderApp();
+        }
+      );
+    };
+
     window.handleProfileImageUpload = function(event) {
       const file = event.target.files[0];
       if (file) {
@@ -1266,6 +1285,9 @@
                             </span>
                             ${currentUserData?.role === 'admin' ? `
                               <button onclick="deleteJobByAdmin('${job.id}')" class="text-rose-600 hover:text-rose-800 font-bold text-xs" title="Hapus Lowongan">🗑️</button>
+                            ` : ""}
+                            ${isMyOwnJob && job.status === 'Aktif' ? `
+                              <button onclick="cancelJobByPoster('${job.id}')" class="text-rose-600 hover:text-rose-800 font-extrabold text-[10px] bg-rose-50 border border-rose-100 hover:bg-rose-100 px-2 py-1 rounded-lg transition" title="Batalkan Lowongan">🗑️ Batalkan</button>
                             ` : ""}
                           </div>
                         </div>
