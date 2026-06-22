@@ -188,10 +188,8 @@
 
     window.AppState = {
       users: [
-        { id: "u-admin", name: "edhos", tower: "Menara Samawa", unit: "Menara Samawa - 0102", phone: "082220691212", password: "admin", role: "admin", verified: true, points: 999, avatar: PRESET_AVATARS[0], securityQuestion: SECURITY_QUESTIONS[0], securityAnswer: "sd pondok kelapa", workerBankName: "BCA", workerBankNumber: "2721651357", workerBankOwner: "Ahmad Nandar Suryadi" },
-        { id: "u-1", name: "Budi Santoso", tower: "Menara Swasana", unit: "Menara Swasana - 1405", phone: "08123456000", password: "warga", role: "warga", verified: true, points: 120, avatar: PRESET_AVATARS[2], securityQuestion: SECURITY_QUESTIONS[1], securityAnswer: "kucing", workerBankName: "SEABANK", workerBankNumber: "901120193202", workerBankOwner: "Budi Santoso" },
-        { id: "u-2", name: "Ibu Desi", tower: "Menara Samawa", unit: "Menara Samawa - 0309", phone: "08111222333", password: "warga", role: "warga", verified: true, points: 45, avatar: PRESET_AVATARS[3], securityQuestion: SECURITY_QUESTIONS[2], securityAnswer: "jakarta", workerBankName: "BCA", workerBankNumber: "1122334455", workerBankOwner: "Ibu Desi" },
-        { id: "u-3", name: "Rian Hidayat", tower: "Menara Samawa", unit: "Menara Samawa - 1205", phone: "08123456789", password: "warga", role: "warga", verified: true, points: 80, avatar: PRESET_AVATARS[4], securityQuestion: SECURITY_QUESTIONS[3], securityAnswer: "hitam", workerBankName: "DKI", workerBankNumber: "456123789", workerBankOwner: "Rian Hidayat" }
+        { id: "u-admin", name: "edhos", tower: "Menara Samawa", unit: "0101 - Menara Samawa", phone: "082220691212", password: "admin", role: "admin", verified: true, points: 999, avatar: PRESET_AVATARS[0], securityQuestion: SECURITY_QUESTIONS[0], securityAnswer: "sd pondok kelapa", workerBankName: "BCA", workerBankNumber: "2721651357", workerBankOwner: "Ahmad Nandar Suryadi" },
+        { id: "u-1", name: "Budi Santoso", tower: "Menara Swasana", unit: "0101 - Menara Swasana", phone: "08123456000", password: "warga", role: "warga", verified: true, points: 120, avatar: PRESET_AVATARS[2], securityQuestion: SECURITY_QUESTIONS[1], securityAnswer: "kucing", workerBankName: "SEABANK", workerBankNumber: "901120193202", workerBankOwner: "Budi Santoso" },
       ],
       jobs: [
         { id: "job-1", title: "Bantu Pindahan Sofa & Meja ke Lantai 15", category: "Serabutan", budget: 150000, posterId: "u-3", description: "Minta tolong 2 orang berbadan sehat untuk angkat sofa lipat dan meja makan dari lobi Menara Samawa ke unit kami di lantai 12. Estimasi pengerjaan cepat sekitar 1 jam saja.", createdAt: "2 jam lalu", targetDate: "2026-06-25", status: "Aktif", workerId: null, paymentMethod: "Langsung" },
@@ -294,8 +292,8 @@
 
     window.getPosterDetail = function(posterId) {
       return AppState.users.find(u => u.id === posterId) || { 
-        name: "Warga Nuansa", 
-        unit: "Unit ?", 
+        name: "Contoh Warga", 
+        unit: "0101", 
         verified: false, 
         avatar: "https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=150" 
       };
@@ -602,7 +600,7 @@
           ${warga.verified ? `<span class="inline-flex items-center text-blue-500" title="Terverifikasi Centang Biru"><svg class="w-4 h-4 fill-current" viewBox="0 0 24 24"><path d="M12 2C6.5 2 2 6.5 2 12s4.5 10 10 10 10-4.5 10-10S17.5 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/></svg></span>` : ''}
         </span>
       `;
-      document.getElementById("vp-unit").innerText = `Unit: ${warga.unit}`;
+      document.getElementById("vp-unit").innerText = `Unit: ${warga.unit} - ${tower}`;
       document.getElementById("vp-points").innerText = `${warga.points || 0} Poin Gotong Royong`;
       document.getElementById("vp-verif-status").innerHTML = verifHtml;
       document.getElementById("vp-talents-container").innerHTML = talentsListHtml || `<p class="text-[11px] text-slate-400 italic py-2 text-center">Warga ini belum mendaftarkan keahlian jasanya.</p>`;
@@ -794,7 +792,7 @@
       const newUser = {
         id: newId,
         name,
-        unit: `${tower} - ${unit}`,
+        unit: `${unit} - ${tower}`,
         phone,
         password: pass,
         role: "warga",
@@ -1840,7 +1838,7 @@
                                 ${poster.name}
                                 ${poster.verified ? `<span class="text-blue-500" title="Terverifikasi Centang Biru"><svg class="w-3.5 h-3.5 fill-current" viewBox="0 0 24 24"><path d="M12 2C6.5 2 2 6.5 2 12s4.5 10 10 10 10-4.5 10-10S17.5 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/></svg></span>` : ""}
                               </p>
-                              <p class="text-[10px] text-slate-400 mt-1">Unit: ${poster.unit}</p>
+                              <p class="text-[10px] text-slate-400 mt-1">Unit: ${poster.unit} - ${tower}</p>
                             </div>
                           </div>
                           <div class="text-right flex flex-col items-end">
@@ -1979,7 +1977,7 @@
                                 ${provider.name}
                                 ${provider.verified ? `<span class="text-blue-500" title="Terverifikasi Centang Biru"><svg class="w-3.5 h-3.5 fill-current" viewBox="0 0 24 24"><path d="M12 2C6.5 2 2 6.5 2 12s4.5 10 10 10 10-4.5 10-10S17.5 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/></svg></span>` : ""}
                               </h4>
-                              <p class="text-[10px] text-slate-400">Unit: ${provider.unit}</p>
+                              <p class="text-[10px] text-slate-400">Unit: ${provider.unit} - ${tower}</p>
                             </div>
                           </div>
                           
@@ -2405,7 +2403,7 @@
                     ${currentUserData.name}
                     ${currentUserData.verified ? `<span class="text-blue-500" title="Terverifikasi Centang Biru"><svg class="w-4 h-4 fill-current" viewBox="0 0 24 24"><path d="M12 2C6.5 2 2 6.5 2 12s4.5 10 10 10 10-4.5 10-10S17.5 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/></svg></span>` : ""}
                   </h3>
-                  <p class="text-xs text-slate-500 mt-1">Unit: ${currentUserData.unit}</p>
+                  <p class="text-xs text-slate-500 mt-1">Unit: ${currentUserData.unit} - ${tower}</p>
                   <span class="inline-block mt-2 bg-brandBlue-50 text-brandBlue-800 font-bold text-xs px-3 py-1 rounded-full border border-brandBlue-200">
                     🏆 ${currentUserData.points} Poin Gotong Royong
                   </span>
@@ -2538,7 +2536,7 @@
               <div class="bg-brandBlue-500/10 border border-brandBlue-200 p-6 rounded-2xl flex items-center space-x-3 text-brandBlue-850">
                 <span class="text-2xl">🔒</span>
                 <div>
-                  <h4 class="font-bold text-sm">Selamat datang, edhos (Admin)</h4>
+                  <h4 class="font-bold text-sm">Selamat datang, <b>edhos</b></h4>
                   <p class="text-xs font-light text-slate-600">Manajemen warga apartemen Menara Samawa & Menara Swasana.</p>
                 </div>
               </div>
@@ -2571,7 +2569,7 @@
                             <td class="p-3 font-bold text-slate-800">${job.title}</td>
                             <td class="p-3">
                               <p class="font-semibold">${poster.name}</p>
-                              <p class="text-[10px] text-slate-400">Unit: ${poster.unit}</p>
+                              <p class="text-[10px] text-slate-400">Unit: ${poster.unit} - ${tower}</p>
                             </td>
                             <td class="p-3 font-bold text-brandBlue-700">Rp ${(job.budget + REKBER_ADMIN_FEE).toLocaleString('id-ID')}</td>
                             <td class="p-3">
@@ -2624,7 +2622,7 @@
                             <td class="p-3 font-bold text-slate-800">${job.title}</td>
                             <td class="p-3">
                               <p class="font-semibold">${worker.name}</p>
-                              <p class="text-[10px] text-slate-400">Unit: ${worker.unit}</p>
+                              <p class="text-[10px] text-slate-400">Unit: ${worker.unit} - ${tower}</p>
                             </td>
                             <td class="p-3">
                               <div class="bg-slate-50 p-2 rounded-xl border text-[10px] space-y-0.5">
@@ -2679,7 +2677,7 @@
                               ${topCandidateUser.name}
                               ${topCandidateUser.verified ? `<span class="text-blue-500" title="Terverifikasi Centang Biru"><svg class="w-3.5 h-3.5 fill-current" viewBox="0 0 24 24"><path d="M12 2C6.5 2 2 6.5 2 12s4.5 10 10 10 10-4.5 10-10S17.5 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/></svg></span>` : ""}
                             </p>
-                            <p class="text-[9px] text-slate-500">Unit: ${topCandidateUser.unit} • <strong>${topCandidateUser.points} Poin</strong></p>
+                            <p class="text-[9px] text-slate-500">Unit: ${topCandidateUser.unit} - ${tower} • <strong>${topCandidateUser.points} Poin</strong></p>
                           </div>
                         </div>
                       ` : `
@@ -2792,7 +2790,7 @@
             <div class="bg-white border border-slate-200 rounded-3xl p-8 max-w-2xl mx-auto space-y-4 shadow-sm animate-fade-in">
               <h3 class="font-extrabold text-lg text-slate-950">Mengenai Nuansa Hub</h3>
               <p class="text-xs sm:text-sm text-slate-600 leading-relaxed font-light">
-                <strong>Nuansa Hub</strong> adalah inovasi mandiri yang didirikan dan dipimpin oleh <strong>edhos (Admin)</strong> guna menggerakkan ekonomi mikro berbasis kegotongroyongan di lingkungan apartemen <strong>Nuansa Pondok Kelapa</strong> (meliputi Menara Samawa & Menara Swasana). 
+                <strong>Nuansa Hub</strong> adalah inovasi mandiri yang didirikan dan dipimpin oleh <strong>edhos</strong> guna menggerakkan ekonomi mikro berbasis kegotongroyongan di lingkungan apartemen <strong>Nuansa Pondok Kelapa</strong> (meliputi Menara Samawa & Menara Swasana). 
               </p>
               <p class="text-xs sm:text-sm text-slate-600 leading-relaxed font-light">
                 Melalui aplikasi ini, sesama warga dapat berinteraksi, menyewa jasa profesional lokal, dan memposting tugas serabutan harian secara terpadu tanpa perantara.
@@ -2807,7 +2805,7 @@
             <div class="max-w-6xl mx-auto px-4 py-3 flex flex-row items-center justify-between gap-4">
               <div class="flex items-center space-x-3 cursor-pointer" onclick="window.changeTab('jobs')">
                 <div class="bg-white p-1 rounded-xl shadow-md max-w-[42px] border border-white/20">
-                  <img src="WhatsApp Image 2026-06-21 at 23.19.22.jpeg" onerror="this.onerror=null; this.src='https://placehold.co/150x150/0054a6/ffffff?text=Nuansa%20Hub'" alt="Logo Nuansa Hub" class="w-full h-auto">
+                  <img src="WhatsApp Image 2026-06-21 at 23.19.22.jpeg" onerror="this.onerror=null; this.src='https://placehold.co/150x150/0054a6/ffffff?text=Nuansa+%20Hub'" alt="Logo Nuansa Hub" class="w-full h-auto">
                 </div>
                 <div>
                   <div class="flex items-center space-x-1.5">
@@ -2864,7 +2862,7 @@
                 <div class="lg:col-span-7 space-y-4">
                   <div class="inline-flex items-center space-x-2 bg-brandBlue-800/40 backdrop-blur px-3 py-1.5 rounded-full text-xs text-sky-200 border border-brandBlue-700/30">
                     <span>🏙️</span>
-                    <span>Menara Samawa & Menara Swasana</span>
+                    <span>Nuansa Pondok Kelapa</span>
                   </div>
                   <h2 class="text-3xl sm:text-4xl lg:text-5xl font-black tracking-tight leading-none text-transparent bg-clip-text bg-gradient-to-r from-white via-sky-100 to-brandGreen-300">
                     Saling Membantu, Membuka Peluang, Membangun Nuansa.
@@ -2884,7 +2882,7 @@
                     <h3 class="font-extrabold text-sm tracking-wide uppercase">Dukungan Server edhos</h3>
                   </div>
                   <p class="text-xs text-slate-200 leading-relaxed font-light">
-                    Aplikasi ini dikembangkan sukarela oleh <strong>edhos (Admin)</strong>. Jika membantu keuangan atau mempermudah keseharian Anda, berikan dukungan sukarela untuk server kami.
+                    Aplikasi ini dikembangkan sukarela oleh <strong>edhos</strong>. Jika membantu keuangan atau mempermudah keseharian Anda, berikan dukungan sukarela untuk server kami.
                   </p>
                   <button onclick="window.openQRISModal()" class="w-full bg-gradient-to-r from-brandGreen-600 to-brandBlue-600 text-white font-extrabold py-3 rounded-2xl text-xs transition shadow-md">📱 Scan QRIS Dukungan</button>
                 </div>
@@ -3392,7 +3390,7 @@
 
         <div class="space-y-1">
           <h3 id="vp-name" class="text-lg font-black text-slate-900">Nama Tetangga</h3>
-          <p id="vp-unit" class="text-xs text-slate-400 font-medium">Unit: Menara Samawa - ?</p>
+          <p id="vp-unit" class="text-xs text-slate-400 font-medium">Unit: ? - Menara Samawa</p>
           
           <div class="flex justify-center pt-1.5" id="vp-verif-status">
             <!-- Diisi dinamis -->
