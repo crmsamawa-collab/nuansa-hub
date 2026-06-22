@@ -80,7 +80,6 @@
 </head>
 <body class="bg-slate-50 text-slate-800 pb-24 min-h-screen flex flex-col">
 
-  <!-- APLIKASI UTAMA -->
   <div id="app" class="flex-grow flex flex-col">
     <!-- Tampilan Memuat (Loading State) Awal -->
     <div id="initial-loader" class="fixed inset-0 bg-gradient-to-br from-brandBlue-950 via-brandBlue-900 to-brandGreen-950 flex flex-col items-center justify-center z-50 text-white p-6">
@@ -116,7 +115,8 @@
       query, 
       onSnapshot, 
       addDoc, 
-      updateDoc
+      updateDoc,
+      deleteDoc
     } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
     const defaultFirebaseConfig = {
@@ -237,7 +237,8 @@
       editAnswer: "",
       workerBankName: "",
       workerBankNumber: "",
-      workerBankOwner: ""
+      workerBankOwner: "",
+      activeTxTab: "semua" // filter dalam Histori Transaksi
     };
 
     const restoreSession = () => {
@@ -299,6 +300,48 @@
       }
     };
 
+    const getTimestampFromId = (id, prefix) => {
+      if (!id) return Date.now();
+      if (id.startsWith(prefix)) {
+        const parts = id.split('-');
+        const ts = parseInt(parts[parts.length - 1]);
+        if (!isNaN(ts) && ts > 1000000000000) return ts; 
+      }
+      return Date.now(); 
+    };
+
+    const pruneOldData = async () => {
+      if (!db || !isFirebaseConnected) return;
+      
+      const sixMonthsAgo = Date.now() - (6 * 30 * 24 * 60 * 60 * 1000);
+      
+      // 1. Pembersihan Postingan Loker (> 6 bulan)
+      AppState.jobs.forEach(async (job) => {
+        const jobTime = getTimestampFromId(job.id, "job");
+        if (jobTime < sixMonthsAgo) {
+          try {
+            await deleteDoc(doc(db, 'artifacts', appId, 'public', 'data', 'jobs', job.id));
+            console.log(`Pruned old job: ${job.id}`);
+          } catch (e) {
+            console.error("Gagal prune loker:", e);
+          }
+        }
+      });
+
+      // 2. Pembersihan Riwayat Obrolan (> 6 bulan)
+      AppState.chats.forEach(async (chat) => {
+        const chatTime = getTimestampFromId(chat.id, "chat");
+        if (chatTime < sixMonthsAgo) {
+          try {
+            await deleteDoc(doc(db, 'artifacts', appId, 'public', 'data', 'chats', chat.id));
+            console.log(`Pruned old chat: ${chat.id}`);
+          } catch (e) {
+            console.error("Gagal prune obrolan:", e);
+          }
+        }
+      });
+    };
+
     const syncFirestoreData = () => {
       if (!db || !auth.currentUser) return;
       const appIdPath = appId;
@@ -342,6 +385,11 @@
 
       populateInitialDataIfEmpty();
 
+      // Menjalankan Pruning otomatis setelah data tersinkronisasi
+      setTimeout(() => {
+        pruneOldData();
+      }, 5000);
+
       onSnapshot(publicDataUsersRef, (snapshot) => {
         isFirebaseConnected = true;
         const syncedUsers = [];
@@ -360,7 +408,6 @@
         });
 
         if (syncedJobs.length > 0) {
-          // Check if total tasks needing admin verification has increased to play a sound
           const currentAdmin = AppState.users.find(u => u.id === AppState.currentUserId);
           if (currentAdmin && currentAdmin.role === 'admin') {
             const currentPendingCount = syncedJobs.filter(j => 
@@ -414,7 +461,6 @@
                 incomingSenderName = senderDetails.name;
                 incomingMessageText = lastMessage.text;
                 
-                // Mark chat as unread in state
                 AppState.unreadChats = AppState.unreadChats || {};
                 AppState.unreadChats[chat.id] = true;
               }
@@ -490,10 +536,12 @@
     };
 
     window.changeTab = function(tabName) {
-      if ((tabName === 'chats' || tabName === 'profile') && (!AppState.isLoggedIn || AppState.isGuestMode)) {
-        openGuestWarningModal("Mengakses halaman pribadi / obrolan");
+      // Menu Profil sekarang dilindungi modal
+      if (tabName === 'profile' && (!AppState.isLoggedIn || AppState.isGuestMode)) {
+        openGuestWarningModal("Mengakses halaman pengaturan profil");
         return;
       }
+      // Menu Admin dilindungi peran khusus
       if (tabName === 'admin') {
         const user = AppState.users.find(u => u.id === AppState.currentUserId);
         if (!user || user.role !== 'admin') {
@@ -501,9 +549,9 @@
           return;
         }
       }
+      
       AppState.activeTab = tabName;
 
-      // Clear unread mark on chat select
       if (tabName === 'chats' && AppState.activeChatId && AppState.unreadChats) {
         AppState.unreadChats[AppState.activeChatId] = false;
       }
@@ -530,6 +578,11 @@
       renderApp();
     };
 
+    window.setTxTab = function(tabName) {
+      AppState.activeTxTab = tabName;
+      renderApp();
+    };
+
     window.searchQueryChange = function(event) {
       AppState.searchQuery = event.target.value;
       renderApp();
@@ -547,7 +600,6 @@
         AppState.currentUserId = user.id;
         AppState.activeTab = "jobs";
         
-        // Save to browser local storage for refresh recovery
         localStorage.setItem('nuansahub_current_user_id', user.id);
 
         closeAuthModal();
@@ -609,7 +661,6 @@
       AppState.currentUserId = newId;
       AppState.activeTab = "jobs";
 
-      // Save session
       localStorage.setItem('nuansahub_current_user_id', newId);
 
       closeAuthModal();
@@ -624,7 +675,6 @@
         AppState.activeChatId = null;
         AppState.activeTab = "jobs";
         
-        // Remove from browser storage
         localStorage.removeItem('nuansahub_current_user_id');
 
         showToast("👋 Berhasil keluar dari akun.");
@@ -677,13 +727,13 @@
     window.cancelJobByPoster = function(jobId) {
       window.showCustomConfirm(
         "Batalkan Lowongan", 
-        "Apakah Anda yakin ingin membatalkan postingan ini karena kesalahan isian atau sudah dikerjakan orang lain?", 
+        "Apakah Anda yakin ingin membatalkan postingan ini?", 
         "🗑️", 
         () => {
           AppState.jobs = AppState.jobs.filter(j => j.id !== jobId);
           if (db) {
             setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'jobs', jobId), {}).then(() => {
-              showToast("🗑️ Lowongan berhasil dibatalkan & dihapus.");
+              showToast("🗑️ Lowongan berhasil dibatalkan.");
             });
           } else {
             showToast("🗑️ Lowongan berhasil dibatalkan.");
@@ -955,7 +1005,6 @@
           return j;
         });
 
-        // Award +25 points
         const workerId = job.workerId;
         AppState.users = AppState.users.map(u => {
           if (u.id === workerId) {
@@ -1014,7 +1063,6 @@
         return j;
       });
 
-      // Award +25 points
       const workerId = job.workerId;
       AppState.users = AppState.users.map(u => {
         if (u.id === workerId) {
@@ -1291,7 +1339,6 @@
                  talent.description.toLowerCase().includes(AppState.searchQuery.toLowerCase());
         });
 
-        // Compute admin notification numbers
         const pendingIncomingCount = AppState.jobs.filter(j => j.status === 'Menunggu Verifikasi Admin' && j.paymentMethod === 'Rekber').length;
         const pendingPayoutCount = AppState.jobs.filter(j => j.status === 'Dana Siap Cair' && j.paymentMethod === 'Rekber').length;
         const totalAdminTasks = pendingIncomingCount + pendingPayoutCount;
@@ -1408,6 +1455,7 @@
             </div>
           `;
         } else if (AppState.activeTab === "talents") {
+          // Merender daftar bakat/jasa warga...
           contentHtml = `
             <div class="space-y-6">
               <div class="flex items-center justify-between">
@@ -1453,284 +1501,460 @@
               </div>
             </div>
           `;
-        } else if (AppState.activeTab === "chats") {
-          const myChats = AppState.chats.filter(c => c.parties.includes(AppState.currentUserId));
-          const activeChat = AppState.chats.find(c => c.id === AppState.activeChatId);
-          const otherParty = activeChat ? getPosterDetail(activeChat.parties.find(p => p !== AppState.currentUserId)) : null;
-          
-          let chatJob = null;
-          let jobTitleDisplay = "Diskusi Umum";
-          if (activeChat) {
-            if (activeChat.jobId && activeChat.jobId.startsWith("talent-inq-")) {
-              const talentId = activeChat.jobId.replace("talent-inq-", "");
-              const talent = AppState.talents.find(t => t.id === talentId);
-              jobTitleDisplay = talent ? `Tanya Jasa: ${talent.skill}` : "Tanya Jasa";
-            } else {
-              chatJob = AppState.jobs.find(j => j.id === activeChat.jobId);
-              jobTitleDisplay = chatJob ? chatJob.title : "Diskusi Umum";
-            }
-          }
-
-          const hasActiveChat = activeChat !== null;
-
-          contentHtml = `
-            <div class="bg-white rounded-3xl border border-slate-200 shadow-lg overflow-hidden grid grid-cols-1 lg:grid-cols-12 min-h-[500px]">
-              <!-- List Diskusi Kiri -->
-              <div class="lg:col-span-4 border-r border-slate-200 flex flex-col bg-slate-50/50 ${hasActiveChat ? 'hidden lg:flex' : 'flex'}">
-                <div class="p-4 border-b border-slate-200 bg-white">
-                  <h3 class="font-extrabold text-sm text-slate-900">Diskusi Warga</h3>
+        } else if (AppState.activeTab === "transaksi") {
+          if (!AppState.isLoggedIn || AppState.isGuestMode) {
+            contentHtml = `
+              <div class="max-w-md mx-auto my-12 bg-white border border-slate-200 rounded-3xl p-8 text-center space-y-6 shadow-md animate-fade-in">
+                <div class="w-16 h-16 bg-brandBlue-50 text-brandBlue-600 rounded-full flex items-center justify-center mx-auto text-3xl shadow-inner">📜</div>
+                <div class="space-y-2">
+                  <h3 class="text-xl font-extrabold text-slate-900">Histori Transaksi</h3>
+                  <p class="text-xs text-slate-500 leading-relaxed font-light">
+                    Masuk atau daftar sekarang untuk melihat dashboard keuangan profesional, ringkasan pengeluaran/pendapatan, serta riwayat pembayaran Anda.
+                  </p>
                 </div>
-                <div class="flex-grow overflow-y-auto divide-y divide-slate-150">
-                  ${myChats.map(c => {
-                    let discussionTitle = "Diskusi Umum";
-                    if (c.jobId && c.jobId.startsWith("talent-inq-")) {
-                      const talentId = c.jobId.replace("talent-inq-", "");
-                      const talent = AppState.talents.find(t => t.id === talentId);
-                      discussionTitle = talent ? `Tanya Jasa: ${talent.skill}` : "Tanya Jasa";
-                    } else {
-                      const jobRef = AppState.jobs.find(j => j.id === c.jobId);
-                      discussionTitle = jobRef ? jobRef.title : "Diskusi Pekerjaan";
-                    }
-
-                    const other = getPosterDetail(c.parties.find(p => p !== AppState.currentUserId));
-                    const lastMsg = c.messages[c.messages.length - 1];
-                    const isSelected = AppState.activeChatId === c.id;
-                    const hasUnread = AppState.unreadChats && AppState.unreadChats[c.id];
-
-                    return `
-                      <button onclick="window.selectChat('${c.id}')" class="w-full p-4 text-left transition flex items-start space-x-3 text-xs ${isSelected ? 'bg-sky-50 border-l-4 border-brandBlue-600' : 'hover:bg-slate-100'}">
-                        <div class="relative flex-shrink-0">
-                          <img src="${other.avatar}" onclick="event.stopPropagation(); openFullPhotoModal('${other.avatar}', '${other.name}')" class="w-8 h-8 rounded-full object-cover aspect-square border cursor-zoom-in" alt="avatar" />
-                          ${hasUnread ? `<span class="absolute top-0 right-0 w-2.5 h-2.5 bg-rose-600 rounded-full ring-2 ring-white"></span>` : ""}
-                        </div>
-                        <div class="min-w-0 flex-grow">
-                          <div class="flex justify-between items-center">
-                            <span class="font-bold truncate text-slate-800">${other.name}</span>
-                            <span class="text-[8px] text-slate-400">${lastMsg ? lastMsg.time : ""}</span>
-                          </div>
-                          <p class="text-[9px] text-brandBlue-800 font-semibold truncate">${discussionTitle}</p>
-                          <p class="text-[10px] text-slate-500 truncate mt-1">${lastMsg ? lastMsg.text : ""}</p>
-                        </div>
-                      </button>
-                    `;
-                  }).join("")}
+                <div class="pt-2 space-y-3">
+                  <button onclick="openAuthModal('login')" class="w-full bg-gradient-to-r from-brandGreen-600 to-brandBlue-600 text-white font-extrabold py-3 rounded-2xl text-xs transition shadow-md hover:opacity-95">🔐 Masuk Ke Akun</button>
+                  <button onclick="openAuthModal('register')" class="w-full bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold py-2.5 rounded-2xl text-xs transition border">📝 Daftar Warga Baru</button>
                 </div>
               </div>
+            `;
+          } else {
+            // Analisis Transaksi Terkait Pengguna Aktif
+            const userJobs = AppState.jobs.filter(j => j.posterId === AppState.currentUserId || j.workerId === AppState.currentUserId);
+            
+            // Hitung Pengeluaran Selesai (Sebagai Poster)
+            const totalSpend = userJobs
+              .filter(j => j.posterId === AppState.currentUserId && j.status === "Selesai & Cair")
+              .reduce((sum, j) => sum + j.budget, 0);
 
-              <!-- Area Obrolan Kanan -->
-              <div class="lg:col-span-8 flex flex-col justify-between bg-white ${hasActiveChat ? 'flex' : 'hidden lg:flex'}">
-                ${activeChat ? `
-                  <div class="p-4 border-b border-slate-200 bg-slate-50 flex justify-between items-center text-xs">
-                    <div class="flex items-center space-x-2">
-                      <button onclick="window.closeActiveChat()" class="lg:hidden p-1 mr-1 text-slate-600 hover:text-slate-900 font-extrabold text-base" title="Kembali ke Daftar">
-                        ←
-                      </button>
-                      <img src="${otherParty.avatar}" onclick="openFullPhotoModal('${otherParty.avatar}', '${otherParty.name}')" class="w-8 h-8 rounded-full object-cover aspect-square cursor-zoom-in" alt="avatar" />
-                      <div>
-                        <h4 class="font-bold text-slate-800">${otherParty.name} (${otherParty.unit})</h4>
-                        <p class="text-[9px] text-slate-400">${jobTitleDisplay}</p>
-                      </div>
+            // Hitung Pendapatan Selesai (Sebagai Pekerja)
+            const totalEarn = userJobs
+              .filter(j => j.workerId === AppState.currentUserId && j.status === "Selesai & Cair")
+              .reduce((sum, j) => sum + j.budget, 0);
+
+            // Transaksi Sedang Berjalan
+            const activeTxCount = userJobs.filter(j => j.status !== "Aktif" && j.status !== "Selesai & Cair").length;
+
+            // Memfilter daftar berdasarkan Tab Transaksi Aktif
+            const txFiltered = userJobs.filter(j => {
+              if (AppState.activeTxTab === "sebagai_pemberi") {
+                return j.posterId === AppState.currentUserId;
+              } else if (AppState.activeTxTab === "sebagai_pekerja") {
+                return j.workerId === AppState.currentUserId;
+              }
+              return true; // semua
+            });
+
+            contentHtml = `
+              <div class="space-y-8 animate-fade-in">
+                <!-- Dashboard Finansial Card -->
+                <div class="bg-gradient-to-br from-brandBlue-950 via-brandBlue-900 to-brandGreen-950 text-white rounded-3xl p-6 shadow-xl border border-white/10">
+                  <div class="flex items-center justify-between mb-6">
+                    <div>
+                      <h4 class="text-xs uppercase tracking-widest text-sky-200 font-bold">Dompet & Histori Finansial</h4>
+                      <h3 class="text-lg font-black text-white mt-1">Dashboard Gotong Royong</h3>
                     </div>
-
-                    ${chatJob ? `
-                      <div class="flex space-x-1.5">
-                        ${chatJob.status === 'Aktif' && chatJob.posterId === AppState.currentUserId ? `
-                          <button onclick="markJobAsAgreed('${activeChat.id}')" class="bg-amber-500 hover:bg-amber-400 text-slate-950 font-black px-3 py-1.5 rounded-lg text-[9px] transition shadow-sm">🤝 Sepakati Pekerjaan</button>
-                        ` : ""}
-
-                        ${chatJob.paymentMethod === 'Langsung' && chatJob.status === 'Sedang Dikerjakan' && chatJob.workerId === AppState.currentUserId ? `
-                          <button onclick="reportJobFinishedByWorker('${activeChat.id}')" class="bg-indigo-600 hover:bg-indigo-500 text-white font-black px-3 py-1.5 rounded-lg text-[9px] transition shadow-sm">🏁 Laporkan Selesai</button>
-                        ` : ""}
-
-                        ${chatJob.paymentMethod === 'Langsung' && chatJob.status === 'Menunggu Pelunasan Mandiri' && chatJob.posterId === AppState.currentUserId ? `
-                          <button onclick="confirmDirectPaymentCleared('${activeChat.id}')" class="bg-brandBlue-600 hover:bg-brandBlue-700 text-white font-black px-3 py-1.5 rounded-lg text-[9px] transition shadow-sm">✓ Konfirmasi Pembayaran Lunas</button>
-                        ` : ""}
-
-                        ${chatJob.paymentMethod === 'Rekber' && chatJob.status === 'Menunggu Transfer Poster' && chatJob.posterId === AppState.currentUserId ? `
-                          <button onclick="confirmPaymentToRekber('${activeChat.id}')" class="bg-brandBlue-600 hover:bg-brandBlue-500 text-white font-black px-3 py-1.5 rounded-lg text-[9px] transition shadow-sm">💰 Saya Sudah Transfer</button>
-                        ` : ""}
-
-                        ${chatJob.paymentMethod === 'Rekber' && chatJob.status === 'Dana Telah Diterima Admin' && chatJob.workerId === AppState.currentUserId ? `
-                          <button onclick="reportJobFinishedByWorker('${activeChat.id}')" class="bg-indigo-600 hover:bg-indigo-500 text-white font-black px-3 py-1.5 rounded-lg text-[9px] transition shadow-sm">🏁 Laporkan Selesai</button>
-                        ` : ""}
-
-                        ${chatJob.paymentMethod === 'Rekber' && chatJob.status === 'Menunggu Lepas Dana' && chatJob.posterId === AppState.currentUserId ? `
-                          <button onclick="releaseEscrowToWorker('${activeChat.id}')" class="bg-brandBlue-600 hover:bg-brandBlue-700 text-white font-black px-3 py-1.5 rounded-lg text-[9px] transition shadow-sm">🔓 Konfirmasi & Lepas Dana</button>
-                        ` : ""}
-                      </div>
-                    ` : ""}
+                    <span class="text-3xl">💳</span>
                   </div>
 
-                  <!-- AREA ESCROW DETAIL DI ATAS CHAT (JIKA ADA KERJAAN) -->
-                  ${chatJob && chatJob.status !== 'Aktif' ? `
-                    <div class="p-4 ${chatJob.paymentMethod === 'Rekber' ? 'bg-sky-50 border-sky-200 text-sky-900' : 'bg-brandBlue-50 border-brandBlue-200 text-brandBlue-900'} border-b text-xs space-y-2">
-                      <div class="flex justify-between items-center">
-                        <span class="font-extrabold">${chatJob.paymentMethod === 'Rekber' ? '🛡️ Alur Pembayaran Rekber Aman:' : '💸 Alur Pembayaran Mandiri (Tanpa Rekber):'}</span>
-                        <span class="bg-white/70 font-extrabold px-2 py-0.5 rounded-full text-[9px] tracking-wide uppercase">${chatJob.status}</span>
+                  <div class="grid grid-cols-1 md:grid-cols-3 gap-6 pt-2">
+                    <div class="bg-white/10 p-4 rounded-2xl border border-white/5 space-y-1">
+                      <p class="text-[10px] text-sky-200 font-bold uppercase tracking-wider">Total Pendapatan Anda</p>
+                      <p class="text-xl font-black text-emerald-400">Rp ${totalEarn.toLocaleString('id-ID')}</p>
+                      <span class="text-[9px] text-sky-100/70 font-light block">Dari jasa & kerjaan yang diselesaikan</span>
+                    </div>
+
+                    <div class="bg-white/10 p-4 rounded-2xl border border-white/5 space-y-1">
+                      <p class="text-[10px] text-sky-200 font-bold uppercase tracking-wider">Total Pengeluaran Anda</p>
+                      <p class="text-xl font-black text-rose-300">Rp ${totalSpend.toLocaleString('id-ID')}</p>
+                      <span class="text-[9px] text-sky-100/70 font-light block">Upah yang diberikan kepada warga</span>
+                    </div>
+
+                    <div class="bg-white/10 p-4 rounded-2xl border border-white/5 space-y-1">
+                      <p class="text-[10px] text-sky-200 font-bold uppercase tracking-wider">Transaksi Aktif</p>
+                      <p class="text-xl font-black text-amber-300">${activeTxCount} Berlangsung</p>
+                      <span class="text-[9px] text-sky-100/70 font-light block">Dalam proses kerja atau penampungan</span>
+                    </div>
+                  </div>
+                </div>
+
+                <!-- Tabs Filter Transaksi -->
+                <div class="flex flex-row justify-between items-center border-b pb-3 border-slate-200 gap-4">
+                  <div class="flex space-x-1">
+                    ${[
+                      { id: "semua", label: "Semua Transaksi" },
+                      { id: "sebagai_pemberi", label: "Pemberi Kerja" },
+                      { id: "sebagai_pekerja", label: "Pekerja" }
+                    ].map(tab => `
+                      <button onclick="setTxTab('${tab.id}')" class="px-3 py-1.5 rounded-lg text-[10px] sm:text-xs font-bold tracking-wide transition-all ${AppState.activeTxTab === tab.id ? 'bg-brandBlue-600 text-white shadow-sm' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}">
+                        ${tab.label}
+                      </button>
+                    `).join("")}
+                  </div>
+                  <span class="text-[10px] text-slate-400 font-light hidden sm:inline">Menampilkan riwayat aman termonitor</span>
+                </div>
+
+                <!-- Rincian Daftar Transaksi -->
+                <div class="space-y-4">
+                  ${txFiltered.map(tx => {
+                    const isPoster = tx.posterId === AppState.currentUserId;
+                    const partnerId = isPoster ? tx.workerId : tx.posterId;
+                    const partner = partnerId ? getPosterDetail(partnerId) : { name: "Mencari Pekerja...", avatar: PRESET_AVATARS[0], unit: "N/A" };
+                    
+                    let roleBadge = isPoster 
+                      ? `<span class="bg-purple-50 text-purple-800 border-purple-100 text-[9px] font-bold px-2 py-0.5 rounded-full border">Pemberi Kerja</span>`
+                      : `<span class="bg-teal-50 text-teal-800 border-teal-100 text-[9px] font-bold px-2 py-0.5 rounded-full border">Pekerja</span>`;
+
+                    let statusBadgeStyle = "bg-amber-50 text-amber-800 border-amber-100";
+                    if (tx.status === "Selesai & Cair") {
+                      statusBadgeStyle = "bg-emerald-50 text-emerald-800 border-emerald-100";
+                    } else if (tx.status.startsWith("Menunggu")) {
+                      statusBadgeStyle = "bg-sky-50 text-sky-800 border-sky-100";
+                    }
+
+                    const txTotal = tx.budget + (tx.paymentMethod === 'Rekber' && isPoster ? REKBER_ADMIN_FEE : 0);
+
+                    return `
+                      <div class="bg-white rounded-2xl border border-slate-200 p-5 flex flex-col md:flex-row justify-between items-start md:items-center gap-4 hover:shadow-md transition">
+                        <div class="flex items-start space-x-3.5">
+                          <div class="w-10 h-10 bg-slate-50 border rounded-xl flex items-center justify-center text-lg flex-shrink-0">
+                            ${tx.paymentMethod === 'Rekber' ? '🛡️' : '💸'}
+                          </div>
+                          <div>
+                            <div class="flex items-center gap-2 mb-1">
+                              <h4 class="font-extrabold text-slate-900 text-sm sm:text-base leading-tight">${tx.title}</h4>
+                              ${roleBadge}
+                            </div>
+                            <p class="text-[11px] text-slate-500 font-light">Partner: <strong>${partner.name}</strong> (${partner.unit})</p>
+                            <p class="text-[9px] text-slate-400 mt-1">Metode: ${tx.paymentMethod} • ID: ${tx.id}</p>
+                          </div>
+                        </div>
+
+                        <div class="flex flex-row md:flex-col items-end justify-between w-full md:w-auto border-t md:border-t-0 pt-3 md:pt-0">
+                          <div class="text-left md:text-right">
+                            <p class="text-[9px] text-slate-400 uppercase font-bold tracking-wider">Nilai Transaksi</p>
+                            <p class="text-base font-black ${isPoster ? 'text-rose-600' : 'text-emerald-600'}">
+                              ${isPoster ? '-' : '+'} Rp ${txTotal.toLocaleString('id-ID')}
+                            </p>
+                          </div>
+                          <div class="mt-1 flex items-center gap-2">
+                            <span class="text-[9px] font-extrabold border px-2 py-0.5 rounded-full ${statusBadgeStyle}">
+                              ${tx.status}
+                            </span>
+                            ${tx.payoutProof && !isPoster ? `
+                              <button onclick="openFullPhotoModal('${tx.payoutProof}', 'Bukti Transfer')" class="text-brandBlue-600 hover:underline font-bold text-[10px]" title="Lihat Bukti Transfer">📸 Bukti</button>
+                            ` : ""}
+                          </div>
+                        </div>
                       </div>
-                      
-                      ${chatJob.paymentMethod === 'Langsung' && chatJob.status === 'Sedang Dikerjakan' ? `
-                        <p class="text-[11px] font-light leading-relaxed">
-                          Pekerjaan sedang berlangsung dengan kesepakatan **Pembayaran Langsung**. Setelah tugas dinyatakan selesai oleh Pekerja, Pemberi Kerja akan membayar langsung (tunai atau transfer) secara mandiri.
-                        </p>
-                      ` : ""}
+                    `;
+                  }).join("")}
 
-                      ${chatJob.paymentMethod === 'Langsung' && chatJob.status === 'Menunggu Pelunasan Mandiri' ? `
-                        <div class="bg-white p-3.5 rounded-2xl border border-brandBlue-200 space-y-2.5">
-                          <p class="font-bold text-slate-800 text-[11px]">🏁 Pekerjaan Selesai! Mohon Selesaikan Pembayaran:</p>
-                          <p class="text-[11px] text-slate-600 font-light leading-relaxed">
-                            Pekerja telah selesai melakukan tugasnya. Harap Pemberi Kerja membayar langsung uang sebesar **Rp ${chatJob.budget.toLocaleString('id-ID')}** secara mandiri ke rekening terdaftar Pekerja berikut:
-                          </p>
-                          <div class="bg-slate-50 p-2.5 rounded-xl border text-[11px]">
-                            <p class="text-slate-400 font-semibold uppercase text-[8px] mb-1">Rekening Pekerja (${otherParty.name}):</p>
-                            <p class="font-bold text-slate-800"><span class="text-teal-700">[${otherParty.workerBankName || 'Belum Diisi'}]</span> ${otherParty.workerBankNumber || 'Kosong'}</p>
-                            <p class="text-slate-500 font-light text-[10px]">a.n ${otherParty.workerBankOwner || 'Kosong'}</p>
-                          </div>
-                          ${chatJob.posterId === AppState.currentUserId ? `
-                            <button onclick="confirmDirectPaymentCleared('${activeChat.id}')" class="bg-brandBlue-600 hover:bg-brandBlue-700 text-white font-extrabold px-4 py-2 rounded-xl text-[10px] transition shadow">Saya Sudah Bayar Lunas</button>
-                          ` : `<span class="text-slate-400 text-[10px] italic">Menunggu pembayaran dikirim & dikonfirmasi oleh Poster...</span>`}
-                        </div>
-                      ` : ""}
-
-                      <!-- REKBER: MENUNGGU TRANSFER POSTER (DIPISAH VIEW POSTER vs PEKERJA) -->
-                      ${chatJob.paymentMethod === 'Rekber' && chatJob.status === 'Menunggu Transfer Poster' ? `
-                        ${chatJob.posterId === AppState.currentUserId ? `
-                          <!-- VIEW UNTUK POSTER: Menampilkan petunjuk transfer lengkap + Upload file -->
-                          <div class="bg-white p-3.5 rounded-2xl border border-sky-200 space-y-3 shadow-inner">
-                            <p class="font-bold text-slate-800">Petunjuk Pembayaran Pemberi Kerja:</p>
-                            <p class="text-[11px] text-slate-600 leading-relaxed font-light">Transfer total tagihan di bawah ini ke salah satu rekening bank resmi pengelola **Ahmad Nandar Suryadi**:</p>
-                            
-                            <div class="grid grid-cols-1 sm:grid-cols-3 gap-2.5 pt-1 text-center font-mono text-[11px]">
-                              ${REKBER_ACCOUNTS.map(acc => `
-                                <div class="bg-slate-50 border p-2.5 rounded-xl">
-                                  <span class="font-bold block text-slate-700 text-[10px]">${acc.bank}</span>
-                                  <span class="text-brandBlue-700 font-black block my-1">${acc.number}</span>
-                                  <span class="text-[9px] text-slate-400 leading-none">a.n ${acc.holder}</span>
-                                </div>
-                              `).join("")}
-                            </div>
-
-                            <div class="bg-slate-50 p-3 rounded-xl border border-dashed border-sky-200 space-y-2">
-                              <p class="text-[10px] font-bold text-slate-700 uppercase">📤 Unggah Bukti Pembayaran Rekber</p>
-                              <div class="flex items-center gap-3">
-                                <input type="file" id="deposit-proof-${chatJob.id}" accept="image/*" onchange="handleDepositProofUpload(event, '${chatJob.id}')" class="hidden" />
-                                <label for="deposit-proof-${chatJob.id}" class="bg-gradient-to-r from-brandGreen-600 to-brandBlue-600 text-white font-extrabold text-[10px] px-3.5 py-2 rounded-lg cursor-pointer transition shadow hover:opacity-95">
-                                  📁 Pilih Bukti Pembayaran
-                                </label>
-                                <span class="text-[10px] text-slate-400 font-light">Maksimal file 2MB</span>
-                              </div>
-                              <div id="deposit-proof-preview-container-${chatJob.id}" class="hidden w-20 h-20 border rounded-lg overflow-hidden mt-2">
-                                <img id="deposit-proof-preview-${chatJob.id}" class="w-full h-full object-cover" />
-                              </div>
-                            </div>
-
-                            <div class="border-t pt-3 flex flex-row items-center justify-between text-xs font-bold text-slate-800">
-                              <div>
-                                <p class="font-normal text-slate-400 text-[10px]">Upah Pekerja: Rp ${chatJob.budget.toLocaleString('id-ID')}</p>
-                                <p class="font-normal text-slate-400 text-[10px]">Biaya Admin: Rp ${REKBER_ADMIN_FEE.toLocaleString('id-ID')}</p>
-                                <p class="text-brandBlue-700 mt-0.5">Total Transfer: Rp ${(chatJob.budget + REKBER_ADMIN_FEE).toLocaleString('id-ID')}</p>
-                              </div>
-                              <button id="btn-submit-deposit-${chatJob.id}" onclick="confirmPaymentToRekber('${activeChat.id}')" disabled class="bg-brandBlue-600 hover:bg-brandBlue-700 text-white font-extrabold px-4 py-2 rounded-xl text-[10px] transition shadow opacity-50 cursor-not-allowed">
-                                Kirim Bukti & Laporkan
-                              </button>
-                            </div>
-                          </div>
-                        ` : `
-                          <!-- VIEW UNTUK PEKERJA (TIDAK MENAMPILKAN DETAIL TRANSFER) -->
-                          <div class="bg-amber-50 p-4 rounded-2xl border border-amber-200 text-amber-900 space-y-1.5 shadow-inner">
-                            <p class="font-bold">⏳ Status Rekber: Menunggu Transfer Poster</p>
-                            <p class="text-[11px] leading-relaxed font-light">Pemberi Kerja (Poster) sedang diarahkan untuk melakukan transfer dana ke rekening Rekber Resmi Admin. Mohon tidak memulai pekerjaan sebelum status berubah menjadi <strong>"Dana Telah Diterima Admin"</strong>.</p>
-                          </div>
-                        `}
-                      ` : ""}
-
-                      ${chatJob.paymentMethod === 'Rekber' && chatJob.status === 'Menunggu Verifikasi Admin' ? `
-                        <p class="text-[11px] text-slate-600 font-light">
-                          Pemberi kerja telah mengirim bukti transfer. Dana sebesar **Rp ${(chatJob.budget + REKBER_ADMIN_FEE).toLocaleString('id-ID')}** sedang diperiksa mutasinya oleh Admin. Pekerja harap menunggu hingga status berubah menjadi **"Dana Telah Diterima Admin"** sebelum mulai bekerja.
-                        </p>
-                      ` : ""}
-
-                      ${chatJob.paymentMethod === 'Rekber' && chatJob.status === 'Dana Telah Diterima Admin' ? `
-                        <div class="bg-emerald-50 p-4 rounded-2xl border border-emerald-200 text-emerald-900 space-y-1.5">
-                          <p class="font-bold text-[11px] uppercase tracking-wide flex items-center gap-1">
-                            <span class="text-base">✓</span> Dana Telah Diterima Admin
-                          </p>
-                          <p class="text-[11px] text-slate-600 font-light leading-relaxed">
-                            Dana upah Pekerja sudah aman dipegang oleh Admin edhos. Pekerja silakan melakukan tugas dengan maksimal sekarang. Jika tugas selesai, Pekerja silakan klik tombol **"Laporkan Selesai"** di kanan atas obrolan.
-                          </p>
-                        </div>
-                      ` : ""}
-
-                      ${chatJob.paymentMethod === 'Rekber' && chatJob.status === 'Menunggu Lepas Dana' ? `
-                        <div class="bg-white p-3 rounded-xl border border-sky-200 space-y-2">
-                          <p class="text-[11px] text-slate-800 font-bold">Tugas Dilaporkan Selesai oleh Pekerja:</p>
-                          <p class="text-[11px] text-slate-600 font-light leading-relaxed">
-                            Pemberi Kerja silakan memeriksa langsung unit / hasil kerja. Jika semua sudah oke, silakan lepas dana agar admin mentransfer upah langsung ke rekening Pekerja.
-                          </p>
-                          ${chatJob.posterId === AppState.currentUserId ? `
-                            <button onclick="releaseEscrowToWorker('${activeChat.id}')" class="bg-brandBlue-600 hover:bg-brandBlue-700 text-white font-bold px-4 py-1.5 rounded-lg text-[10px] transition shadow">Ya, Lepas Dana Sekarang</button>
-                          ` : ""}
-                        </div>
-                      ` : ""}
-
-                      <!-- PROOF OF TRANSFER DISKUSI REKBER AREA -->
-                      ${chatJob.status === 'Selesai & Cair' && chatJob.paymentMethod === 'Rekber' ? `
-                        <div class="bg-emerald-50 border border-emerald-200 p-3.5 rounded-2xl space-y-2 text-slate-800">
-                          <p class="font-bold text-emerald-800 text-[11px]">💸 Pembayaran Telah Dicairkan Admin!</p>
-                          <p class="text-[10px] font-light">Admin edhos telah mentransfer upah Anda. Klik tombol di bawah untuk melihat bukti transfer resmi:</p>
-                          ${chatJob.payoutProof ? `
-                            <button onclick="openFullPhotoModal('${chatJob.payoutProof}', 'Bukti Transfer Admin')" class="bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold px-3 py-1.5 rounded-lg text-[9px] transition shadow">👁️ Lihat Bukti Transfer</button>
-                          ` : `<span class="text-slate-400 text-[9px] italic">Bukti transfer belum diunggah admin.</span>`}
-                        </div>
-                      ` : ""}
+                  ${txFiltered.length === 0 ? `
+                    <div class="text-center py-12 bg-white rounded-3xl border border-dashed border-slate-200">
+                      <span class="text-3xl">📜</span>
+                      <p class="text-slate-500 text-xs mt-2 font-medium">Belum ada riwayat transaksi dalam kategori ini.</p>
+                      <p class="text-[10px] text-slate-400 mt-1">Lakukan kesepakatan mading kerja untuk melacak keuangan.</p>
                     </div>
                   ` : ""}
+                </div>
+              </div>
+            `;
+          }
+        } else if (AppState.activeTab === "chats") {
+          if (!AppState.isLoggedIn || AppState.isGuestMode) {
+            contentHtml = `
+              <div class="max-w-md mx-auto my-12 bg-white border border-slate-200 rounded-3xl p-8 text-center space-y-6 shadow-md animate-fade-in">
+                <div class="w-16 h-16 bg-brandBlue-50 text-brandBlue-600 rounded-full flex items-center justify-center mx-auto text-3xl shadow-inner">💬</div>
+                <div class="space-y-2">
+                  <h3 class="text-xl font-extrabold text-slate-900">Histori Obrolan & Diskusi</h3>
+                  <p class="text-xs text-slate-500 leading-relaxed font-light">
+                    Masuk atau daftar untuk melihat riwayat obrolan, melakukan tawar-menawar, serta memantau kesepakatan kerja Anda bersama tetangga.
+                  </p>
+                </div>
+                <div class="pt-2 space-y-3">
+                  <button onclick="openAuthModal('login')" class="w-full bg-gradient-to-r from-brandGreen-600 to-brandBlue-600 text-white font-extrabold py-3 rounded-2xl text-xs transition shadow-md hover:opacity-95">🔐 Masuk Ke Akun</button>
+                  <button onclick="openAuthModal('register')" class="w-full bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold py-2.5 rounded-2xl text-xs transition border">📝 Daftar Warga Baru</button>
+                </div>
+              </div>
+            `;
+          } else {
+            const myChats = AppState.chats.filter(c => c.parties.includes(AppState.currentUserId));
+            const activeChat = AppState.chats.find(c => c.id === AppState.activeChatId);
+            const otherParty = activeChat ? getPosterDetail(activeChat.parties.find(p => p !== AppState.currentUserId)) : null;
+            
+            let chatJob = null;
+            let jobTitleDisplay = "Diskusi Umum";
+            if (activeChat) {
+              if (activeChat.jobId && activeChat.jobId.startsWith("talent-inq-")) {
+                const talentId = activeChat.jobId.replace("talent-inq-", "");
+                const talent = AppState.talents.find(t => t.id === talentId);
+                jobTitleDisplay = talent ? `Tanya Jasa: ${talent.skill}` : "Tanya Jasa";
+              } else {
+                chatJob = AppState.jobs.find(j => j.id === activeChat.jobId);
+                jobTitleDisplay = chatJob ? chatJob.title : "Diskusi Umum";
+              }
+            }
 
-                  <div class="flex-grow p-4 overflow-y-auto space-y-3 bg-slate-50/50 max-h-[350px]">
-                    ${activeChat.messages.map(m => {
-                      const isSystem = m.senderId === "system";
-                      const isMe = m.senderId === AppState.currentUserId;
-                      
-                      if (isSystem) {
-                        return `
-                          <div class="bg-sky-50 border border-sky-100 p-3 rounded-2xl text-center text-[10px] text-sky-900 max-w-md mx-auto my-2">
-                            ${m.text}
-                          </div>
-                        `;
+            const hasActiveChat = activeChat !== null;
+
+            contentHtml = `
+              <div class="bg-white rounded-3xl border border-slate-200 shadow-lg overflow-hidden grid grid-cols-1 lg:grid-cols-12 min-h-[500px]">
+                <!-- List Diskusi Kiri -->
+                <div class="lg:col-span-4 border-r border-slate-200 flex flex-col bg-slate-50/50 ${hasActiveChat ? 'hidden lg:flex' : 'flex'}">
+                  <div class="p-4 border-b border-slate-200 bg-white">
+                    <h3 class="font-extrabold text-sm text-slate-900">Diskusi Warga</h3>
+                  </div>
+                  <div class="flex-grow overflow-y-auto divide-y divide-slate-150">
+                    ${myChats.map(c => {
+                      let discussionTitle = "Diskusi Umum";
+                      if (c.jobId && c.jobId.startsWith("talent-inq-")) {
+                        const talentId = c.jobId.replace("talent-inq-", "");
+                        const talent = AppState.talents.find(t => t.id === talentId);
+                        discussionTitle = talent ? `Tanya Jasa: ${talent.skill}` : "Tanya Jasa";
+                      } else {
+                        const jobRef = AppState.jobs.find(j => j.id === c.jobId);
+                        discussionTitle = jobRef ? jobRef.title : "Diskusi Pekerjaan";
                       }
 
+                      const other = getPosterDetail(c.parties.find(p => p !== AppState.currentUserId));
+                      const lastMsg = c.messages[c.messages.length - 1];
+                      const isSelected = AppState.activeChatId === c.id;
+                      const hasUnread = AppState.unreadChats && AppState.unreadChats[c.id];
+
                       return `
-                        <div class="flex ${isMe ? 'justify-end' : 'justify-start'}">
-                          <div class="p-3 rounded-2xl text-xs sm:text-sm max-w-xs sm:max-w-md ${isMe ? 'bg-gradient-to-r from-brandGreen-600 to-brandBlue-600 text-white rounded-tr-none shadow' : 'bg-white border text-slate-800 rounded-tl-none shadow-sm'}">
-                            <p class="leading-relaxed">${m.text}</p>
-                            <span class="block text-[8px] text-right mt-1 opacity-70">${m.time}</span>
+                        <button onclick="window.selectChat('${c.id}')" class="w-full p-4 text-left transition flex items-start space-x-3 text-xs ${isSelected ? 'bg-sky-50 border-l-4 border-brandBlue-600' : 'hover:bg-slate-100'}">
+                          <div class="relative flex-shrink-0">
+                            <img src="${other.avatar}" onclick="event.stopPropagation(); openFullPhotoModal('${other.avatar}', '${other.name}')" class="w-8 h-8 rounded-full object-cover aspect-square border cursor-zoom-in" alt="avatar" />
+                            ${hasUnread ? `<span class="absolute top-0 right-0 w-2.5 h-2.5 bg-rose-600 rounded-full ring-2 ring-white"></span>` : ""}
                           </div>
-                        </div>
+                          <div class="min-w-0 flex-grow">
+                            <div class="flex justify-between items-center">
+                              <span class="font-bold truncate text-slate-800">${other.name}</span>
+                              <span class="text-[8px] text-slate-400">${lastMsg ? lastMsg.time : ""}</span>
+                            </div>
+                            <p class="text-[9px] text-brandBlue-800 font-semibold truncate">${discussionTitle}</p>
+                            <p class="text-[10px] text-slate-500 truncate mt-1">${lastMsg ? lastMsg.text : ""}</p>
+                          </div>
+                        </button>
                       `;
                     }).join("")}
                   </div>
+                </div>
 
-                  <form onsubmit="sendChatMessageAction(event)" class="p-4 border-t flex items-center space-x-2 bg-white">
-                    <input
-                      type="text"
-                      id="chat-message-input"
-                      placeholder="Ketik pesan kesepakatan kerja..."
-                      class="flex-grow px-4 py-2.5 border rounded-xl text-xs sm:text-sm focus:outline-none focus:ring-1 focus:ring-brandBlue-500"
-                      required
-                    />
-                    <button type="submit" class="bg-gradient-to-r from-brandGreen-600 to-brandBlue-600 text-white font-bold px-4 py-2.5 rounded-xl text-xs sm:text-sm transition shadow-sm hover:opacity-95">Kirim</button>
-                  </form>
-                ` : `
-                  <div class="h-full flex flex-col justify-center items-center p-12 text-slate-400 text-center space-y-2">
-                    <span class="text-4xl">💬</span>
-                    <p class="text-slate-600 font-bold text-sm">Belum ada obrolan terpilih</p>
-                    <p class="text-xs max-w-xs font-light">Silakan hubungi warga lain dari mading Pasar Kerja atau Jasa untuk berdiskusi.</p>
-                  </div>
-                `}
+                <!-- Area Obrolan Kanan -->
+                <div class="lg:col-span-8 flex flex-col justify-between bg-white ${hasActiveChat ? 'flex' : 'hidden lg:flex'}">
+                  ${activeChat ? `
+                    <div class="p-4 border-b border-slate-200 bg-slate-50 flex justify-between items-center text-xs">
+                      <div class="flex items-center space-x-2">
+                        <button onclick="window.closeActiveChat()" class="lg:hidden p-1 mr-1 text-slate-600 hover:text-slate-900 font-extrabold text-base" title="Kembali ke Daftar">
+                          ←
+                        </button>
+                        <img src="${otherParty.avatar}" onclick="openFullPhotoModal('${otherParty.avatar}', '${otherParty.name}')" class="w-8 h-8 rounded-full object-cover aspect-square cursor-zoom-in" alt="avatar" />
+                        <div>
+                          <h4 class="font-bold text-slate-800">${otherParty.name} (${otherParty.unit})</h4>
+                          <p class="text-[9px] text-slate-400">${jobTitleDisplay}</p>
+                        </div>
+                      </div>
+
+                      ${chatJob ? `
+                        <div class="flex space-x-1.5">
+                          ${chatJob.status === 'Aktif' && chatJob.posterId === AppState.currentUserId ? `
+                            <button onclick="markJobAsAgreed('${activeChat.id}')" class="bg-amber-500 hover:bg-amber-400 text-slate-950 font-black px-3 py-1.5 rounded-lg text-[9px] transition shadow-sm">🤝 Sepakati Pekerjaan</button>
+                          ` : ""}
+
+                          ${chatJob.paymentMethod === 'Langsung' && chatJob.status === 'Sedang Dikerjakan' && chatJob.workerId === AppState.currentUserId ? `
+                            <button onclick="reportJobFinishedByWorker('${activeChat.id}')" class="bg-indigo-600 hover:bg-indigo-500 text-white font-black px-3 py-1.5 rounded-lg text-[9px] transition shadow-sm">🏁 Laporkan Selesai</button>
+                          ` : ""}
+
+                          ${chatJob.paymentMethod === 'Langsung' && chatJob.status === 'Menunggu Pelunasan Mandiri' && chatJob.posterId === AppState.currentUserId ? `
+                            <button onclick="confirmDirectPaymentCleared('${activeChat.id}')" class="bg-brandBlue-600 hover:bg-brandBlue-700 text-white font-black px-3 py-1.5 rounded-lg text-[9px] transition shadow-sm">✓ Konfirmasi Pembayaran Lunas</button>
+                          ` : ""}
+
+                          ${chatJob.paymentMethod === 'Rekber' && chatJob.status === 'Menunggu Transfer Poster' && chatJob.posterId === AppState.currentUserId ? `
+                            <button onclick="confirmPaymentToRekber('${activeChat.id}')" class="bg-brandBlue-600 hover:bg-brandBlue-500 text-white font-black px-3 py-1.5 rounded-lg text-[9px] transition shadow-sm">💰 Saya Sudah Transfer</button>
+                          ` : ""}
+
+                          ${chatJob.paymentMethod === 'Rekber' && chatJob.status === 'Dana Telah Diterima Admin' && chatJob.workerId === AppState.currentUserId ? `
+                            <button onclick="reportJobFinishedByWorker('${activeChat.id}')" class="bg-indigo-600 hover:bg-indigo-500 text-white font-black px-3 py-1.5 rounded-lg text-[9px] transition shadow-sm">🏁 Laporkan Selesai</button>
+                          ` : ""}
+
+                          ${chatJob.paymentMethod === 'Rekber' && chatJob.status === 'Menunggu Lepas Dana' && chatJob.posterId === AppState.currentUserId ? `
+                            <button onclick="releaseEscrowToWorker('${activeChat.id}')" class="bg-brandBlue-600 hover:bg-brandBlue-700 text-white font-black px-3 py-1.5 rounded-lg text-[9px] transition shadow-sm">🔓 Konfirmasi & Lepas Dana</button>
+                          ` : ""}
+                        </div>
+                      ` : ""}
+                    </div>
+
+                    <!-- AREA ESCROW DETAIL DI ATAS CHAT (JIKA ADA KERJAAN) -->
+                    ${chatJob && chatJob.status !== 'Aktif' ? `
+                      <div class="p-4 ${chatJob.paymentMethod === 'Rekber' ? 'bg-sky-50 border-sky-200 text-sky-900' : 'bg-brandBlue-50 border-brandBlue-200 text-brandBlue-900'} border-b text-xs space-y-2">
+                        <div class="flex justify-between items-center">
+                          <span class="font-extrabold">${chatJob.paymentMethod === 'Rekber' ? '🛡️ Alur Pembayaran Rekber Aman:' : '💸 Alur Pembayaran Mandiri (Tanpa Rekber):'}</span>
+                          <span class="bg-white/70 font-extrabold px-2 py-0.5 rounded-full text-[9px] tracking-wide uppercase">${chatJob.status}</span>
+                        </div>
+                        
+                        ${chatJob.paymentMethod === 'Langsung' && chatJob.status === 'Sedang Dikerjakan' ? `
+                          <p class="text-[11px] font-light leading-relaxed">
+                            Pekerjaan sedang berlangsung dengan kesepakatan **Pembayaran Langsung**. Setelah tugas dinyatakan selesai oleh Pekerja, Pemberi Kerja akan membayar langsung (tunai atau transfer) secara mandiri.
+                          </p>
+                        ` : ""}
+
+                        ${chatJob.paymentMethod === 'Langsung' && chatJob.status === 'Menunggu Pelunasan Mandiri' ? `
+                          <div class="bg-white p-3.5 rounded-2xl border border-brandBlue-200 space-y-2.5">
+                            <p class="font-bold text-slate-800 text-[11px]">🏁 Pekerjaan Selesai! Mohon Selesaikan Pembayaran:</p>
+                            <p class="text-[11px] text-slate-600 font-light leading-relaxed">
+                              Pekerja telah selesai melakukan tugasnya. Harap Pemberi Kerja membayar langsung uang sebesar **Rp ${chatJob.budget.toLocaleString('id-ID')}** secara mandiri ke rekening terdaftar Pekerja berikut:
+                            </p>
+                            <div class="bg-slate-50 p-2.5 rounded-xl border text-[11px]">
+                              <p class="text-slate-400 font-semibold uppercase text-[8px] mb-1">Rekening Pekerja (${otherParty.name}):</p>
+                              <p class="font-bold text-slate-800"><span class="text-teal-700">[${otherParty.workerBankName || 'Belum Diisi'}]</span> ${otherParty.workerBankNumber || 'Kosong'}</p>
+                              <p class="text-slate-500 font-light text-[10px]">a.n ${otherParty.workerBankOwner || 'Kosong'}</p>
+                            </div>
+                            ${chatJob.posterId === AppState.currentUserId ? `
+                              <button onclick="confirmDirectPaymentCleared('${activeChat.id}')" class="bg-brandBlue-600 hover:bg-brandBlue-700 text-white font-extrabold px-4 py-2 rounded-xl text-[10px] transition shadow">Saya Sudah Bayar Lunas</button>
+                            ` : `<span class="text-slate-400 text-[10px] italic">Menunggu pembayaran dikirim & dikonfirmasi oleh Poster...</span>`}
+                          </div>
+                        ` : ""}
+
+                        <!-- REKBER: MENUNGGU TRANSFER POSTER -->
+                        ${chatJob.paymentMethod === 'Rekber' && chatJob.status === 'Menunggu Transfer Poster' ? `
+                          ${chatJob.posterId === AppState.currentUserId ? `
+                            <div class="bg-white p-3.5 rounded-2xl border border-sky-200 space-y-3 shadow-inner">
+                              <p class="font-bold text-slate-800">Petunjuk Pembayaran Pemberi Kerja:</p>
+                              <p class="text-[11px] text-slate-600 leading-relaxed font-light">Transfer total tagihan di bawah ini ke salah satu rekening bank resmi pengelola **Ahmad Nandar Suryadi**:</p>
+                              
+                              <div class="grid grid-cols-1 sm:grid-cols-3 gap-2.5 pt-1 text-center font-mono text-[11px]">
+                                ${REKBER_ACCOUNTS.map(acc => `
+                                  <div class="bg-slate-50 border p-2.5 rounded-xl">
+                                    <span class="font-bold block text-slate-700 text-[10px]">${acc.bank}</span>
+                                    <span class="text-brandBlue-700 font-black block my-1">${acc.number}</span>
+                                    <span class="text-[9px] text-slate-400 leading-none">a.n ${acc.holder}</span>
+                                  </div>
+                                `).join("")}
+                              </div>
+
+                              <div class="bg-slate-50 p-3 rounded-xl border border-dashed border-sky-200 space-y-2">
+                                <p class="text-[10px] font-bold text-slate-700 uppercase">📤 Unggah Bukti Pembayaran Rekber</p>
+                                <div class="flex items-center gap-3">
+                                  <input type="file" id="deposit-proof-${chatJob.id}" accept="image/*" onchange="handleDepositProofUpload(event, '${chatJob.id}')" class="hidden" />
+                                  <label for="deposit-proof-${chatJob.id}" class="bg-gradient-to-r from-brandGreen-600 to-brandBlue-600 text-white font-extrabold text-[10px] px-3.5 py-2 rounded-lg cursor-pointer transition shadow hover:opacity-95">
+                                    📁 Pilih Bukti Pembayaran
+                                  </label>
+                                  <span class="text-[10px] text-slate-400 font-light">Maksimal file 2MB</span>
+                                </div>
+                                <div id="deposit-proof-preview-container-${chatJob.id}" class="hidden w-20 h-20 border rounded-lg overflow-hidden mt-2">
+                                  <img id="deposit-proof-preview-${chatJob.id}" class="w-full h-full object-cover" />
+                                </div>
+                              </div>
+
+                              <div class="border-t pt-3 flex flex-row items-center justify-between text-xs font-bold text-slate-800">
+                                <div>
+                                  <p class="font-normal text-slate-400 text-[10px]">Upah Pekerja: Rp ${chatJob.budget.toLocaleString('id-ID')}</p>
+                                  <p class="font-normal text-slate-400 text-[10px]">Biaya Admin: Rp ${REKBER_ADMIN_FEE.toLocaleString('id-ID')}</p>
+                                  <p class="text-brandBlue-700 mt-0.5">Total Transfer: Rp ${(chatJob.budget + REKBER_ADMIN_FEE).toLocaleString('id-ID')}</p>
+                                </div>
+                                <button id="btn-submit-deposit-${chatJob.id}" onclick="confirmPaymentToRekber('${activeChat.id}')" disabled class="bg-brandBlue-600 hover:bg-brandBlue-700 text-white font-extrabold px-4 py-2 rounded-xl text-[10px] transition shadow opacity-50 cursor-not-allowed">
+                                  Kirim Bukti & Laporkan
+                                </button>
+                              </div>
+                            </div>
+                          ` : `
+                            <div class="bg-amber-50 p-4 rounded-2xl border border-amber-200 text-amber-900 space-y-1.5 shadow-inner">
+                              <p class="font-bold">⏳ Status Rekber: Menunggu Transfer Poster</p>
+                              <p class="text-[11px] leading-relaxed font-light">Pemberi Kerja (Poster) sedang diarahkan untuk melakukan transfer dana ke rekening Rekber Resmi Admin. Mohon tidak memulai pekerjaan sebelum status berubah menjadi <strong>"Dana Telah Diterima Admin"</strong>.</p>
+                            </div>
+                          `}
+                        ` : ""}
+
+                        ${chatJob.paymentMethod === 'Rekber' && chatJob.status === 'Menunggu Verifikasi Admin' ? `
+                          <p class="text-[11px] text-slate-600 font-light">
+                            Pemberi kerja telah mengirim bukti transfer. Dana sebesar **Rp ${(chatJob.budget + REKBER_ADMIN_FEE).toLocaleString('id-ID')}** sedang diperiksa mutasinya oleh Admin. Pekerja harap menunggu hingga status berubah menjadi **"Dana Telah Diterima Admin"** sebelum mulai bekerja.
+                          </p>
+                        ` : ""}
+
+                        ${chatJob.paymentMethod === 'Rekber' && chatJob.status === 'Dana Telah Diterima Admin' ? `
+                          <div class="bg-emerald-50 p-4 rounded-2xl border border-emerald-200 text-emerald-900 space-y-1.5">
+                            <p class="font-bold text-[11px] uppercase tracking-wide flex items-center gap-1">
+                              <span class="text-base">✓</span> Dana Telah Diterima Admin
+                            </p>
+                            <p class="text-[11px] text-slate-600 font-light leading-relaxed">
+                              Dana upah Pekerja sudah aman dipegang oleh Admin edhos. Pekerja silakan melakukan tugas dengan maksimal sekarang. Jika tugas selesai, Pekerja silakan klik tombol **"Laporkan Selesai"** di kanan atas obrolan.
+                            </p>
+                          </div>
+                        ` : ""}
+
+                        ${chatJob.paymentMethod === 'Rekber' && chatJob.status === 'Menunggu Lepas Dana' ? `
+                          <div class="bg-white p-3 rounded-xl border border-sky-200 space-y-2">
+                            <p class="text-[11px] text-slate-800 font-bold">Tugas Dilaporkan Selesai oleh Pekerja:</p>
+                            <p class="text-[11px] text-slate-600 font-light leading-relaxed">
+                              Pemberi Kerja silakan memeriksa langsung unit / hasil kerja. Jika semua sudah oke, silakan lepas dana agar admin mentransfer upah langsung ke rekening Pekerja.
+                            </p>
+                            ${chatJob.posterId === AppState.currentUserId ? `
+                              <button onclick="releaseEscrowToWorker('${activeChat.id}')" class="bg-brandBlue-600 hover:bg-brandBlue-700 text-white font-bold px-4 py-1.5 rounded-lg text-[10px] transition shadow">Ya, Lepas Dana Sekarang</button>
+                            ` : ""}
+                          </div>
+                        ` : ""}
+
+                        ${chatJob.status === 'Selesai & Cair' && chatJob.paymentMethod === 'Rekber' ? `
+                          <div class="bg-emerald-50 border border-emerald-200 p-3.5 rounded-2xl space-y-2 text-slate-800">
+                            <p class="font-bold text-emerald-800 text-[11px]">💸 Pembayaran Telah Dicairkan Admin!</p>
+                            <p class="text-[10px] font-light">Admin edhos telah mentransfer upah Anda. Klik tombol di bawah untuk melihat bukti transfer resmi:</p>
+                            ${chatJob.payoutProof ? `
+                              <button onclick="openFullPhotoModal('${chatJob.payoutProof}', 'Bukti Transfer Admin')" class="bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold px-3 py-1.5 rounded-lg text-[9px] transition shadow">👁️ Lihat Bukti Transfer</button>
+                            ` : `<span class="text-slate-400 text-[9px] italic">Bukti transfer belum diunggah admin.</span>`}
+                          </div>
+                        ` : ""}
+                      </div>
+                    ` : ""}
+
+                    <div class="flex-grow p-4 overflow-y-auto space-y-3 bg-slate-50/50 max-h-[350px]">
+                      ${activeChat.messages.map(m => {
+                        const isSystem = m.senderId === "system";
+                        const isMe = m.senderId === AppState.currentUserId;
+                        
+                        if (isSystem) {
+                          return `
+                            <div class="bg-sky-50 border border-sky-100 p-3 rounded-2xl text-center text-[10px] text-sky-900 max-w-md mx-auto my-2">
+                              ${m.text}
+                            </div>
+                          `;
+                        }
+
+                        return `
+                          <div class="flex ${isMe ? 'justify-end' : 'justify-start'}">
+                            <div class="p-3 rounded-2xl text-xs sm:text-sm max-w-xs sm:max-w-md ${isMe ? 'bg-gradient-to-r from-brandGreen-600 to-brandBlue-600 text-white rounded-tr-none shadow' : 'bg-white border text-slate-800 rounded-tl-none shadow-sm'}">
+                              <p class="leading-relaxed">${m.text}</p>
+                              <span class="block text-[8px] text-right mt-1 opacity-70">${m.time}</span>
+                            </div>
+                          </div>
+                        `;
+                      }).join("")}
+                    </div>
+
+                    <form onsubmit="sendChatMessageAction(event)" class="p-4 border-t flex items-center space-x-2 bg-white">
+                      <input
+                        type="text"
+                        id="chat-message-input"
+                        placeholder="Ketik pesan kesepakatan kerja..."
+                        class="flex-grow px-4 py-2.5 border rounded-xl text-xs sm:text-sm focus:outline-none focus:ring-1 focus:ring-brandBlue-500"
+                        required
+                      />
+                      <button type="submit" class="bg-gradient-to-r from-brandGreen-600 to-brandBlue-600 text-white font-bold px-4 py-2.5 rounded-xl text-xs sm:text-sm transition shadow-sm hover:opacity-95">Kirim</button>
+                    </form>
+                  ` : `
+                    <div class="h-full flex flex-col justify-center items-center p-12 text-slate-400 text-center space-y-2">
+                      <span class="text-4xl">💬</span>
+                      <p class="text-slate-600 font-bold text-sm">Belum ada obrolan terpilih</p>
+                      <p class="text-xs max-w-xs font-light">Silakan hubungi warga lain dari mading Pasar Kerja atau Jasa untuk berdiskusi.</p>
+                    </div>
+                  `}
+                </div>
               </div>
-            </div>
-          `;
+            `;
+          }
         } else if (AppState.activeTab === "profile" && currentUserData) {
+          // Merender halaman profil warga...
           contentHtml = `
             <div class="max-w-4xl mx-auto grid grid-cols-1 md:grid-cols-12 gap-8">
               <div class="md:col-span-4 bg-white border border-slate-200 rounded-3xl p-6 text-center space-y-5 h-fit shadow-sm animate-fade-in">
@@ -1966,7 +2190,7 @@
               <!-- Upload File QRIS Baru oleh Admin -->
               <div class="bg-white rounded-3xl border p-6 shadow-sm">
                 <h3 class="font-extrabold text-slate-950 mb-3 text-sm">📤 Unggah / Ganti Gambar QRIS Donasi</h3>
-                <p class="text-xs text-slate-400 mb-4 font-light">Atur QRIS Donasi Server yang akan ditampilkan kepada warga. Foto terunggah akan disimpan dalam Cloud Firestore.</p>
+                <p class="text-xs text-slate-400 mb-4 font-light">Atur QRIS Donasi Server yang akan ditampilkan kepada warga.</p>
                 <div class="flex flex-col md:flex-row items-center gap-6 bg-slate-50 p-4 rounded-2xl border border-slate-200">
                   <div class="w-32 h-32 md:w-40 md:h-40 bg-white border rounded-2xl p-2 shadow-inner flex items-center justify-center overflow-hidden">
                     <img src="${AppState.qrisImage}" onclick="openFullPhotoModal('${AppState.qrisImage}', 'QRIS Keuangan')" class="max-w-full max-h-full object-contain cursor-zoom-in" alt="QRIS Preview" />
@@ -2034,8 +2258,9 @@
             </div>
           `;
         } else {
+          // Merender halaman info tentang kami...
           contentHtml = `
-            <div class="bg-white border border-slate-200 rounded-3xl p-8 max-w-2xl mx-auto space-y-4 shadow-sm animate-fade-in">
+            <div class="bg-white border border-slate-200 rounded-3xl p-8 max-w-2xl mx-auto space-y-4 shadow-sm animate-fade-in text-center md:text-left">
               <h3 class="font-extrabold text-lg text-slate-950">Mengenai NuansaHub</h3>
               <p class="text-xs sm:text-sm text-slate-600 leading-relaxed font-light">
                 <strong>NuansaHub</strong> adalah inovasi mandiri yang didirikan dan dipimpin oleh <strong>edhos (Admin)</strong> guna menggerakkan ekonomi mikro berbasis kegotongroyongan di lingkungan apartemen <strong>Nuansa Pondok Kelapa</strong> (meliputi Menara Samawa & Menara Swasana). 
@@ -2077,7 +2302,6 @@
                 </div>
               </div>
 
-              <!-- Login / Profile Section & Logout Pojok Kanan Atas -->
               <div class="flex items-center space-x-2">
                 ${AppState.isLoggedIn && currentUserData ? `
                   <button onclick="changeTab('profile')" class="bg-white/10 px-3 py-1.5 rounded-xl text-xs font-bold border border-white/20 hover:bg-white/20 transition flex items-center space-x-2">
@@ -2092,7 +2316,6 @@
                       ` : ""}
                     </button>
                   ` : ""}
-                  <!-- Tombol Logout yang Mudah Ditemukan -->
                   <button onclick="handleLogoutAction()" class="bg-rose-600 hover:bg-rose-700 text-white font-extrabold px-3 py-1.5 rounded-xl text-xs flex items-center space-x-1 transition shadow-md" title="Keluar Akun">
                     <span>Keluar</span>
                     <span>🚪</span>
@@ -2175,7 +2398,7 @@
           </main>
 
           <!-- NAVIGASI BOTTOM BAR -->
-          <nav class="fixed bottom-4 left-4 right-4 md:left-1/2 md:right-auto md:w-[450px] md:-translate-x-1/2 bg-white/95 backdrop-blur-md border border-slate-200/80 rounded-2xl shadow-xl py-2 px-6 flex justify-around items-center z-40">
+          <nav class="fixed bottom-4 left-4 right-4 md:left-1/2 md:right-auto md:w-[480px] md:-translate-x-1/2 bg-white/95 backdrop-blur-md border border-slate-200/80 rounded-2xl shadow-xl py-2 px-4 flex justify-around items-center z-40">
             <button onclick="changeTab('jobs')" class="flex flex-col items-center justify-center w-14 py-1 transition-all ${AppState.activeTab === 'jobs' ? 'text-brandBlue-600 scale-110 font-bold' : 'text-slate-400 font-normal'}">
               <span class="text-lg">💼</span>
               <span class="text-[9px] tracking-tight mt-0.5 font-bold">Kerjaan</span>
@@ -2183,6 +2406,11 @@
             <button onclick="changeTab('talents')" class="flex flex-col items-center justify-center w-14 py-1 transition-all ${AppState.activeTab === 'talents' ? 'text-brandBlue-600 scale-110 font-bold' : 'text-slate-400 font-normal'}">
               <span class="text-lg">🛠️</span>
               <span class="text-[9px] tracking-tight mt-0.5 font-bold">Jasa</span>
+            </button>
+            <!-- TAB BARU: Histori Transaksi -->
+            <button onclick="changeTab('transaksi')" class="flex flex-col items-center justify-center w-14 py-1 transition-all ${AppState.activeTab === 'transaksi' ? 'text-brandBlue-600 scale-110 font-bold' : 'text-slate-400 font-normal'}">
+              <span class="text-lg">📜</span>
+              <span class="text-[9px] tracking-tight mt-0.5 font-bold">Transaksi</span>
             </button>
             <button onclick="changeTab('chats')" class="flex flex-col items-center justify-center w-14 py-1 transition-all ${AppState.activeTab === 'chats' ? 'text-brandBlue-600 scale-110 font-bold' : 'text-slate-400 font-normal'}">
               <span class="text-lg relative">
@@ -2194,10 +2422,6 @@
             <button onclick="changeTab('profile')" class="flex flex-col items-center justify-center w-14 py-1 transition-all ${AppState.activeTab === 'profile' ? 'text-brandBlue-600 scale-110 font-bold' : 'text-slate-400 font-normal'}">
               <span class="text-lg">👤</span>
               <span class="text-[9px] tracking-tight mt-0.5 font-bold">Profil</span>
-            </button>
-            <button onclick="changeTab('about')" class="flex flex-col items-center justify-center w-14 py-1 transition-all ${AppState.activeTab === 'about' ? 'text-brandBlue-600 scale-110 font-bold' : 'text-slate-400 font-normal'}">
-              <span class="text-lg">ℹ️</span>
-              <span class="text-[9px] tracking-tight mt-0.5 font-bold">Info</span>
             </button>
           </nav>
         `;
@@ -2512,7 +2736,7 @@
         </div>
         <div>
           <label class="block text-[9px] font-bold text-slate-500 uppercase mb-0.5">Keterangan Jasa *</label>
-          <textarea id="new-talent-desc" rows="4" placeholder="Jelaskan mengenai detail keahlian, hari aktif, tarif perkiraan..." class="w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-1 focus:ring-brandBlue-500" required></textarea>
+          <textarea id="new-talent-desc" rows="4" placeholder="Jelaskan mengenai detail keahlian..." class="w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-1 focus:ring-brandBlue-500" required></textarea>
         </div>
         <button type="submit" class="w-full bg-gradient-to-r from-brandGreen-600 to-brandBlue-600 text-white font-bold py-2.5 rounded-lg transition shadow-md">Daftarkan Jasa 📢</button>
       </form>
