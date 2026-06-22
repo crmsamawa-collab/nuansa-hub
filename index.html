@@ -82,9 +82,7 @@
 </head>
 <body class="bg-slate-50 text-slate-800 pb-28 min-h-screen flex flex-col">
 
-  <!-- APLIKASI UTAMA -->
   <div id="app" class="flex-grow flex flex-col">
-    <!-- Tampilan Memuat (Loading State) Awal -->
     <div id="initial-loader" class="fixed inset-0 bg-gradient-to-br from-brandBlue-950 via-brandBlue-900 to-brandGreen-950 flex flex-col items-center justify-center z-50 text-white p-6">
       <div class="bg-white p-4 rounded-3xl shadow-2xl mb-4 animate-bounce max-w-[120px] border border-white/20">
         <img src="WhatsApp Image 2026-06-21 at 23.19.22.jpeg" onerror="this.onerror=null; this.src='https://placehold.co/150x150/0054a6/ffffff?text=Nuansa+Hub'" alt="Logo Nuansa Hub" class="w-full h-auto">
@@ -94,15 +92,12 @@
     </div>
   </div>
 
-  <!-- MEMUAT KONFIGURASI DINAMIS DARI VERCEL API ROUTE -->
   <script src="/api/config.js"></script>
 
-  <!-- FIREBASE SDK IMPORTS -->
   <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
     import { 
       getAuth, 
-      signInWithCustomToken, 
       signInAnonymously, 
       onAuthStateChanged,
       signOut
@@ -244,17 +239,16 @@
       unreadChats: {}
     };
 
-    // FUNGSI PEMBERSIHAN OTOMATIS DATA DI ATAS 6 BULAN (PRUNING)
     const pruneOldData = async () => {
       if (!db || !auth.currentUser) return;
       const EnamBulanMilidetik = 6 * 30 * 24 * 60 * 60 * 1000;
       const batasWaktuPrune = Date.now() - EnamBulanMilidetik;
 
-      // Hapus jobs usang
+      // Pembersihan loker kerjaan
       AppState.jobs.forEach(async (job) => {
         const idTimestamp = parseInt(job.id.replace("job-", ""));
         if (!isNaN(idTimestamp) && idTimestamp < batasWaktuPrune) {
-          console.log("Menghapus data loker usang (lebih dari 6 bulan):", job.id);
+          console.log("Menghapus data loker usang (> 6 bulan):", job.id);
           try {
             await deleteDoc(doc(db, 'artifacts', appId, 'public', 'data', 'jobs', job.id));
           } catch(err) {
@@ -263,11 +257,11 @@
         }
       });
 
-      // Hapus chats usang
+      // Pembersihan obrolan/chat
       AppState.chats.forEach(async (chat) => {
         const idTimestamp = parseInt(chat.id.replace("chat-", ""));
         if (!isNaN(idTimestamp) && idTimestamp < batasWaktuPrune) {
-          console.log("Menghapus ruang obrolan usang (lebih dari 6 bulan):", chat.id);
+          console.log("Menghapus ruang obrolan usang (> 6 bulan):", chat.id);
           try {
             await deleteDoc(doc(db, 'artifacts', appId, 'public', 'data', 'chats', chat.id));
           } catch(err) {
@@ -378,7 +372,7 @@
       };
 
       populateInitialDataIfEmpty().then(() => {
-        pruneOldData(); // Jalankan pembersihan data > 6 bulan saat startup
+        pruneOldData(); 
       });
 
       onSnapshot(publicDataUsersRef, (snapshot) => {
@@ -395,7 +389,7 @@
 
         snapshot.forEach(doc => { 
           const data = doc.data();
-          if (data && data.title) { // Pertahanan agar tidak membaca dokumen kosong
+          if (data && data.title) { 
             syncedJobs.push({ id: doc.id, ...data }); 
           }
         });
@@ -529,7 +523,6 @@
     };
 
     window.changeTab = function(tabName) {
-      // Hilangkan blokir akses tab "chats" & "transaksi" agar warga selalu bisa melihat histori
       AppState.activeTab = tabName;
 
       if (tabName === 'chats' && AppState.activeChatId && AppState.unreadChats) {
@@ -1041,7 +1034,7 @@
           const updated = { ...u, points: (u.points || 0) + 25 };
           if (db) { setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'users', u.id), updated); }
           return updated;
-        }
+          }
         return u;
       });
 
@@ -1329,7 +1322,6 @@
                 </div>
               </div>
 
-              <!-- INFO REKBER BOX -->
               <div class="bg-gradient-to-r from-brandBlue-950 via-brandBlue-900 to-brandGreen-950 text-white rounded-3xl p-5 sm:p-6 shadow-md border border-brandBlue-900/50 flex flex-col sm:flex-row items-center justify-between gap-4">
                 <div class="space-y-1">
                   <span class="bg-gradient-to-r from-brandGreen-600 to-brandBlue-600 text-white text-[10px] font-black tracking-widest uppercase px-3 py-1 rounded-full border border-white/20">🛡️ Rekber Bersifat Opsional</span>
@@ -1475,7 +1467,6 @@
             </div>
           `;
         } else if (AppState.activeTab === "transaksi") {
-          // INTERFACE PROFESIONAL HISTORI TRANSAKSI
           if (!AppState.isLoggedIn || AppState.isGuestMode) {
             contentHtml = `
               <div class="max-w-md mx-auto my-12 bg-white border border-slate-200 rounded-3xl p-8 text-center space-y-6 shadow-md animate-fade-in">
@@ -1493,7 +1484,6 @@
               </div>
             `;
           } else {
-            // Kalkulasi Transaksi User Berlangsung & Selesai
             const asPosterJobs = AppState.jobs.filter(j => j.posterId === AppState.currentUserId);
             const asWorkerJobs = AppState.jobs.filter(j => j.workerId === AppState.currentUserId);
             const totalPengeluaran = asPosterJobs.filter(j => j.status === 'Selesai & Cair').reduce((acc, curr) => acc + curr.budget, 0);
@@ -1507,7 +1497,6 @@
                   <p class="text-xs text-slate-500 font-light">Laporan keuangan mandiri dan pembayaran via Rekber NuansaHub.</p>
                 </div>
 
-                <!-- RINGKASAN STATISTIK FINANSIAL -->
                 <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
                   <div class="bg-white p-5 rounded-3xl border border-slate-200 shadow-sm flex items-center space-x-4">
                     <div class="w-12 h-12 bg-emerald-50 text-emerald-600 rounded-2xl flex items-center justify-center text-xl shadow-inner">📈</div>
@@ -1526,13 +1515,12 @@
                   <div class="bg-white p-5 rounded-3xl border border-slate-200 shadow-sm flex items-center space-x-4">
                     <div class="w-12 h-12 bg-brandBlue-50 text-brandBlue-600 rounded-2xl flex items-center justify-center text-xl shadow-inner">⏳</div>
                     <div>
-                      <p class="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Transaksi Berlangsung</p>
+                      <p class="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Transaksi Berjalan</p>
                       <p class="text-lg font-black text-brandBlue-800">${transaksiBerjalan} Tugas</p>
                     </div>
                   </div>
                 </div>
 
-                <!-- DAFTAR TRANSAKSI -->
                 <div class="bg-white rounded-3xl border border-slate-200 shadow-sm overflow-hidden">
                   <div class="p-4 bg-slate-50/50 border-b border-slate-150 flex items-center justify-between">
                     <h4 class="font-extrabold text-slate-900 text-xs sm:text-sm">Riwayat Aktivitas Keuangan</h4>
@@ -1630,7 +1618,7 @@
 
             contentHtml = `
               <div class="bg-white rounded-3xl border border-slate-200 shadow-lg overflow-hidden flex flex-col lg:grid lg:grid-cols-12 min-h-[550px] lg:h-[650px] animate-fade-in">
-                <!-- PANEL DAFTAR DISKUSI (MOBILE: ATAS, DESKTOP: KIRI) -->
+                <!-- PANEL DAFTAR DISKUSI (SELALU TERLIHAT DI HP DI BAGIAN ATAS DENGAN UKURAN PROPORSIONAL) -->
                 <div class="lg:col-span-4 border-b lg:border-b-0 lg:border-r border-slate-200 flex flex-col bg-slate-50/50 h-[180px] lg:h-full overflow-hidden">
                   <div class="p-3 border-b border-slate-200 bg-white sticky top-0 z-10 flex justify-between items-center">
                     <h3 class="font-extrabold text-xs text-slate-900 uppercase tracking-wider">Diskusi Warga</h3>
@@ -1673,7 +1661,7 @@
                   </div>
                 </div>
 
-                <!-- PANEL AREA CHAT AKTIF (MOBILE: BAWAH, DESKTOP: KANAN) -->
+                <!-- PANEL AREA CHAT AKTIF (DI BAGIAN BAWAH DI HP, ATAU KANAN DI DESKTOP) -->
                 <div class="lg:col-span-8 flex flex-col justify-between bg-white h-[380px] lg:h-full overflow-hidden">
                   ${activeChat ? `
                     <div class="p-3 border-b border-slate-200 bg-slate-50 flex justify-between items-center text-xs">
@@ -1827,8 +1815,9 @@
                   </span>
                 </div>
 
-                <button onclick="window.handleLogoutAction()" class="w-full bg-rose-50 hover:bg-rose-100 text-rose-800 font-bold py-2.5 rounded-2xl text-xs transition border border-rose-200 shadow-sm">
-                  Keluar / Logout 🚪
+                <button onclick="window.handleLogoutAction()" class="w-full bg-transparent hover:opacity-80 transition py-2 flex items-center justify-center gap-2">
+                  <img src="image_587cbb.jpg" alt="Logout" class="w-10 h-10 object-contain rounded-xl" />
+                  <span class="text-xs font-bold text-slate-600">Keluar / Logout</span>
                 </button>
               </div>
 
@@ -2156,7 +2145,7 @@
                 </div>
               </div>
 
-              <!-- Pojok Kanan Atas -->
+              <!-- Ganti tombol keluar header pojok kanan memakai gambar tanpa warna dasar -->
               <div class="flex items-center space-x-2">
                 ${AppState.isLoggedIn && currentUserData ? `
                   <button onclick="window.changeTab('profile')" class="bg-white/10 px-3 py-1.5 rounded-xl text-xs font-bold border border-white/20 hover:bg-white/20 transition flex items-center space-x-2">
@@ -2171,8 +2160,8 @@
                       ` : ""}
                     </button>
                   ` : ""}
-                  <button onclick="window.handleLogoutAction()" class="bg-rose-600 hover:bg-rose-700 text-white font-extrabold p-2.5 rounded-xl text-sm transition shadow-md flex items-center justify-center" title="Keluar Akun">
-                    <span>🚪</span>
+                  <button onclick="window.handleLogoutAction()" class="hover:opacity-80 transition flex items-center justify-center p-1" title="Keluar Akun">
+                    <img src="image_587cbb.jpg" alt="Logout" class="w-9 h-9 object-contain rounded-xl" />
                   </button>
                 ` : `
                   <button onclick="window.openAuthModal('login')" class="bg-gradient-to-r from-brandGreen-500 to-brandBlue-500 text-white hover:opacity-95 font-black px-4 py-2 rounded-xl text-xs shadow-md">🔑 Masuk / Daftar</button>
